@@ -1,5 +1,5 @@
 ;
-; jdmerss2-64.asm - merged upsampling/color conversion (64-bit SSE2)
+; jdmerss2.asm - merged upsampling/color conversion (SSE2)
 ;
 ; Copyright 2009 Pierre Ossman <ossman@cendio.se> for Cendio AB
 ; Copyright 2009 D. R. Commander
@@ -49,9 +49,9 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 
 ; --------------------------------------------------------------------------
 	SECTION	SEG_TEXT
-	BITS	64
+	BITS	32
 
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -63,7 +63,7 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_PIXELSIZE EXT_RGB_PIXELSIZE
 %define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extrgb_merged_upsample_sse2
 %define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extrgb_merged_upsample_sse2
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -75,7 +75,7 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_PIXELSIZE EXT_RGBX_PIXELSIZE
 %define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extrgbx_merged_upsample_sse2
 %define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extrgbx_merged_upsample_sse2
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -87,7 +87,7 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_PIXELSIZE EXT_BGR_PIXELSIZE
 %define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extbgr_merged_upsample_sse2
 %define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extbgr_merged_upsample_sse2
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -99,7 +99,7 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_PIXELSIZE EXT_BGRX_PIXELSIZE
 %define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extbgrx_merged_upsample_sse2
 %define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extbgrx_merged_upsample_sse2
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -111,7 +111,7 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_PIXELSIZE EXT_XBGR_PIXELSIZE
 %define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extxbgr_merged_upsample_sse2
 %define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extxbgr_merged_upsample_sse2
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -123,4 +123,4 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_PIXELSIZE EXT_XRGB_PIXELSIZE
 %define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extxrgb_merged_upsample_sse2
 %define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extxrgb_merged_upsample_sse2
-%include "jdmrgss2-64.asm"
+%include "jdmrgss2.nasm"

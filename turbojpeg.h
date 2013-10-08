@@ -29,7 +29,7 @@
 #ifndef __TURBOJPEG_H__
 #define __TURBOJPEG_H__
 
-#if defined(_WIN32) && defined(DLLDEFINE)
+#if defined(_WIN32) && defined(_DLL)
 #define DLLEXPORT __declspec(dllexport)
 #else
 #define DLLEXPORT

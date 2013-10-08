@@ -1,5 +1,5 @@
 ;
-; jdmerss2.asm - merged upsampling/color conversion (SSE2)
+; jdmermmx.asm - merged upsampling/color conversion (MMX)
 ;
 ; Copyright 2009 Pierre Ossman <ossman@cendio.se> for Cendio AB
 ; Copyright 2009 D. R. Commander
@@ -35,15 +35,15 @@ F_0_228	equ	(131072 - F_1_772)	; FIX(2) - FIX(1.77200)
 	SECTION	SEG_CONST
 
 	alignz	16
-	global	EXTN(jconst_merged_upsample_sse2)
+	global	EXTN(jconst_merged_upsample_mmx)
 
-EXTN(jconst_merged_upsample_sse2):
+EXTN(jconst_merged_upsample_mmx):
 
-PW_F0402	times 8 dw  F_0_402
-PW_MF0228	times 8 dw -F_0_228
-PW_MF0344_F0285	times 4 dw -F_0_344, F_0_285
-PW_ONE		times 8 dw  1
-PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
+PW_F0402	times 4 dw  F_0_402
+PW_MF0228	times 4 dw -F_0_228
+PW_MF0344_F0285	times 2 dw -F_0_344, F_0_285
+PW_ONE		times 4 dw  1
+PD_ONEHALF	times 2 dd  1 << (SCALEBITS-1)
 
 	alignz	16
 
@@ -51,7 +51,7 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 	SECTION	SEG_TEXT
 	BITS	32
 
-%include "jdmrgss2.asm"
+%include "jdmrgmmx.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -61,9 +61,9 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_GREEN EXT_RGB_GREEN
 %define RGB_BLUE EXT_RGB_BLUE
 %define RGB_PIXELSIZE EXT_RGB_PIXELSIZE
-%define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extrgb_merged_upsample_sse2
-%define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extrgb_merged_upsample_sse2
-%include "jdmrgss2.asm"
+%define jsimd_h2v1_merged_upsample_mmx jsimd_h2v1_extrgb_merged_upsample_mmx
+%define jsimd_h2v2_merged_upsample_mmx jsimd_h2v2_extrgb_merged_upsample_mmx
+%include "jdmrgmmx.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -73,9 +73,9 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_GREEN EXT_RGBX_GREEN
 %define RGB_BLUE EXT_RGBX_BLUE
 %define RGB_PIXELSIZE EXT_RGBX_PIXELSIZE
-%define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extrgbx_merged_upsample_sse2
-%define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extrgbx_merged_upsample_sse2
-%include "jdmrgss2.asm"
+%define jsimd_h2v1_merged_upsample_mmx jsimd_h2v1_extrgbx_merged_upsample_mmx
+%define jsimd_h2v2_merged_upsample_mmx jsimd_h2v2_extrgbx_merged_upsample_mmx
+%include "jdmrgmmx.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -85,9 +85,9 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_GREEN EXT_BGR_GREEN
 %define RGB_BLUE EXT_BGR_BLUE
 %define RGB_PIXELSIZE EXT_BGR_PIXELSIZE
-%define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extbgr_merged_upsample_sse2
-%define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extbgr_merged_upsample_sse2
-%include "jdmrgss2.asm"
+%define jsimd_h2v1_merged_upsample_mmx jsimd_h2v1_extbgr_merged_upsample_mmx
+%define jsimd_h2v2_merged_upsample_mmx jsimd_h2v2_extbgr_merged_upsample_mmx
+%include "jdmrgmmx.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -97,9 +97,9 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_GREEN EXT_BGRX_GREEN
 %define RGB_BLUE EXT_BGRX_BLUE
 %define RGB_PIXELSIZE EXT_BGRX_PIXELSIZE
-%define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extbgrx_merged_upsample_sse2
-%define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extbgrx_merged_upsample_sse2
-%include "jdmrgss2.asm"
+%define jsimd_h2v1_merged_upsample_mmx jsimd_h2v1_extbgrx_merged_upsample_mmx
+%define jsimd_h2v2_merged_upsample_mmx jsimd_h2v2_extbgrx_merged_upsample_mmx
+%include "jdmrgmmx.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -109,9 +109,9 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_GREEN EXT_XBGR_GREEN
 %define RGB_BLUE EXT_XBGR_BLUE
 %define RGB_PIXELSIZE EXT_XBGR_PIXELSIZE
-%define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extxbgr_merged_upsample_sse2
-%define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extxbgr_merged_upsample_sse2
-%include "jdmrgss2.asm"
+%define jsimd_h2v1_merged_upsample_mmx jsimd_h2v1_extxbgr_merged_upsample_mmx
+%define jsimd_h2v2_merged_upsample_mmx jsimd_h2v2_extxbgr_merged_upsample_mmx
+%include "jdmrgmmx.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -121,6 +121,6 @@ PD_ONEHALF	times 4 dd  1 << (SCALEBITS-1)
 %define RGB_GREEN EXT_XRGB_GREEN
 %define RGB_BLUE EXT_XRGB_BLUE
 %define RGB_PIXELSIZE EXT_XRGB_PIXELSIZE
-%define jsimd_h2v1_merged_upsample_sse2 jsimd_h2v1_extxrgb_merged_upsample_sse2
-%define jsimd_h2v2_merged_upsample_sse2 jsimd_h2v2_extxrgb_merged_upsample_sse2
-%include "jdmrgss2.asm"
+%define jsimd_h2v1_merged_upsample_mmx jsimd_h2v1_extxrgb_merged_upsample_mmx
+%define jsimd_h2v2_merged_upsample_mmx jsimd_h2v2_extxrgb_merged_upsample_mmx
+%include "jdmrgmmx.nasm"

@@ -44,7 +44,7 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 	SECTION	SEG_TEXT
 	BITS	64
 
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -55,7 +55,7 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 %define RGB_BLUE EXT_RGB_BLUE
 %define RGB_PIXELSIZE EXT_RGB_PIXELSIZE
 %define jsimd_rgb_gray_convert_sse2 jsimd_extrgb_gray_convert_sse2
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -66,7 +66,7 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 %define RGB_BLUE EXT_RGBX_BLUE
 %define RGB_PIXELSIZE EXT_RGBX_PIXELSIZE
 %define jsimd_rgb_gray_convert_sse2 jsimd_extrgbx_gray_convert_sse2
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -77,7 +77,7 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 %define RGB_BLUE EXT_BGR_BLUE
 %define RGB_PIXELSIZE EXT_BGR_PIXELSIZE
 %define jsimd_rgb_gray_convert_sse2 jsimd_extbgr_gray_convert_sse2
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -88,7 +88,7 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 %define RGB_BLUE EXT_BGRX_BLUE
 %define RGB_PIXELSIZE EXT_BGRX_PIXELSIZE
 %define jsimd_rgb_gray_convert_sse2 jsimd_extbgrx_gray_convert_sse2
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -99,7 +99,7 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 %define RGB_BLUE EXT_XBGR_BLUE
 %define RGB_PIXELSIZE EXT_XBGR_PIXELSIZE
 %define jsimd_rgb_gray_convert_sse2 jsimd_extxbgr_gray_convert_sse2
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
 
 %undef RGB_RED
 %undef RGB_GREEN
@@ -110,4 +110,4 @@ PD_ONEHALF	times 4 dd  (1 << (SCALEBITS-1))
 %define RGB_BLUE EXT_XRGB_BLUE
 %define RGB_PIXELSIZE EXT_XRGB_PIXELSIZE
 %define jsimd_rgb_gray_convert_sse2 jsimd_extxrgb_gray_convert_sse2
-%include "jcgryss2-64.asm"
+%include "jcgryss2-64.nasm"
