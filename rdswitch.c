@@ -1,10 +1,8 @@
 /*
  * rdswitch.c
  *
- * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1996, Thomas G. Lane.
- * Modifications:
- * Copyright (C) 2010, D. R. Commander.
+ * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains routines to process some of cjpeg's more complicated
@@ -72,10 +70,6 @@ read_text_integer (FILE * file, long * result, int * termchar)
 }
 
 
-#if JPEG_LIB_VERSION < 70
-static int q_scale_factor[NUM_QUANT_TBLS] = {100, 100, 100, 100};
-#endif
-
 GLOBAL(boolean)
 read_quant_tables (j_compress_ptr cinfo, char * filename, boolean force_baseline)
 /* Read a set of quantization tables from the specified file.
@@ -114,13 +108,8 @@ read_quant_tables (j_compress_ptr cinfo, char * filename, boolean force_baseline
       }
       table[i] = (unsigned int) val;
     }
-#if JPEG_LIB_VERSION >= 70
     jpeg_add_quant_table(cinfo, tblno, table, cinfo->q_scale_factor[tblno],
 			 force_baseline);
-#else
-    jpeg_add_quant_table(cinfo, tblno, table, q_scale_factor[tblno],
-                         force_baseline);
-#endif
     tblno++;
   }
 
@@ -274,44 +263,6 @@ bogus:
 #endif /* C_MULTISCAN_FILES_SUPPORTED */
 
 
-#if JPEG_LIB_VERSION < 70
-/* These are the sample quantization tables given in JPEG spec section K.1.
- * The spec says that the values given produce "good" quality, and
- * when divided by 2, "very good" quality.
- */
-static const unsigned int std_luminance_quant_tbl[DCTSIZE2] = {
-  16,  11,  10,  16,  24,  40,  51,  61,
-  12,  12,  14,  19,  26,  58,  60,  55,
-  14,  13,  16,  24,  40,  57,  69,  56,
-  14,  17,  22,  29,  51,  87,  80,  62,
-  18,  22,  37,  56,  68, 109, 103,  77,
-  24,  35,  55,  64,  81, 104, 113,  92,
-  49,  64,  78,  87, 103, 121, 120, 101,
-  72,  92,  95,  98, 112, 100, 103,  99
-};
-static const unsigned int std_chrominance_quant_tbl[DCTSIZE2] = {
-  17,  18,  24,  47,  99,  99,  99,  99,
-  18,  21,  26,  66,  99,  99,  99,  99,
-  24,  26,  56,  99,  99,  99,  99,  99,
-  47,  66,  99,  99,  99,  99,  99,  99,
-  99,  99,  99,  99,  99,  99,  99,  99,
-  99,  99,  99,  99,  99,  99,  99,  99,
-  99,  99,  99,  99,  99,  99,  99,  99,
-  99,  99,  99,  99,  99,  99,  99,  99
-};
-
-
-LOCAL(void)
-jpeg_default_qtables (j_compress_ptr cinfo, boolean force_baseline)
-{
-  jpeg_add_quant_table(cinfo, 0, std_luminance_quant_tbl,
-		       q_scale_factor[0], force_baseline);
-  jpeg_add_quant_table(cinfo, 1, std_chrominance_quant_tbl,
-		       q_scale_factor[1], force_baseline);
-}
-#endif
-
-
 GLOBAL(boolean)
 set_quality_ratings (j_compress_ptr cinfo, char *arg, boolean force_baseline)
 /* Process a quality-ratings parameter string, of the form
@@ -331,20 +282,12 @@ set_quality_ratings (j_compress_ptr cinfo, char *arg, boolean force_baseline)
       if (ch != ',')		/* syntax check */
 	return FALSE;
       /* Convert user 0-100 rating to percentage scaling */
-#if JPEG_LIB_VERSION >= 70
       cinfo->q_scale_factor[tblno] = jpeg_quality_scaling(val);
-#else
-      q_scale_factor[tblno] = jpeg_quality_scaling(val);
-#endif
       while (*arg && *arg++ != ',') /* advance to next segment of arg string */
 	;
     } else {
       /* reached end of parameter, set remaining factors to last value */
-#if JPEG_LIB_VERSION >= 70
       cinfo->q_scale_factor[tblno] = jpeg_quality_scaling(val);
-#else
-      q_scale_factor[tblno] = jpeg_quality_scaling(val);
-#endif
     }
   }
   jpeg_default_qtables(cinfo, force_baseline);

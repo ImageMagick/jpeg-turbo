@@ -1,11 +1,9 @@
 /*
  * cjpeg.c
  *
- * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1998, Thomas G. Lane.
- * Modified 2003-2011 by Guido Vollbeding.
- * Modifications:
- * Copyright (C) 2010, 2013, D. R. Commander.
+ * Modified 2003-2013 by Guido Vollbeding.
+ * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains a command-line user interface for the JPEG compressor.
@@ -28,7 +26,6 @@
 
 #include "cdjpeg.h"		/* Common decls for cjpeg/djpeg applications */
 #include "jversion.h"		/* for version message */
-#include "config.h"
 
 #ifdef USE_CCOMMAND		/* command-line reader for Macintosh */
 #ifdef __MWERKS__
@@ -139,7 +136,6 @@ select_file_type (j_compress_ptr cinfo, FILE * infile)
 
 static const char * progname;	/* program name for error messages */
 static char * outfilename;	/* for -outfile switch */
-boolean memdst;  /* for -memdst switch */
 
 
 LOCAL(void)
@@ -163,12 +159,22 @@ usage (void)
 #ifdef C_PROGRESSIVE_SUPPORTED
   fprintf(stderr, "  -progressive   Create progressive JPEG file\n");
 #endif
+#ifdef DCT_SCALING_SUPPORTED
+  fprintf(stderr, "  -scale M/N     Scale image by fraction M/N, eg, 1/2\n");
+#endif
 #ifdef TARGA_SUPPORTED
   fprintf(stderr, "  -targa         Input file is Targa format (usually not needed)\n");
 #endif
   fprintf(stderr, "Switches for advanced users:\n");
 #ifdef C_ARITH_CODING_SUPPORTED
   fprintf(stderr, "  -arithmetic    Use arithmetic coding\n");
+#endif
+#ifdef DCT_SCALING_SUPPORTED
+  fprintf(stderr, "  -block N       DCT block size (1..16; default is 8)\n");
+#endif
+#if JPEG_LIB_VERSION_MAJOR >= 9
+  fprintf(stderr, "  -rgb1          Create RGB JPEG file with reversible color transform\n");
+  fprintf(stderr, "  -bgycc         Create big gamut YCC JPEG file\n");
 #endif
 #ifdef DCT_ISLOW_SUPPORTED
   fprintf(stderr, "  -dct int       Use integer DCT method%s\n",
@@ -182,15 +188,13 @@ usage (void)
   fprintf(stderr, "  -dct float     Use floating-point DCT method%s\n",
 	  (JDCT_DEFAULT == JDCT_FLOAT ? " (default)" : ""));
 #endif
+  fprintf(stderr, "  -nosmooth      Don't use high-quality downsampling\n");
   fprintf(stderr, "  -restart N     Set restart interval in rows, or in blocks with B\n");
 #ifdef INPUT_SMOOTHING_SUPPORTED
   fprintf(stderr, "  -smooth N      Smooth dithered input (N=1..100 is strength)\n");
 #endif
   fprintf(stderr, "  -maxmemory N   Maximum memory to use (in kbytes)\n");
   fprintf(stderr, "  -outfile name  Specify name for output file\n");
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
-  fprintf(stderr, "  -memdst        Compress to memory instead of file (useful for benchmarking)\n");
-#endif
   fprintf(stderr, "  -verbose  or  -debug   Emit debug output\n");
   fprintf(stderr, "Switches for wizards:\n");
   fprintf(stderr, "  -baseline      Force baseline quantization tables\n");
@@ -232,7 +236,6 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
   simple_progressive = FALSE;
   is_targa = FALSE;
   outfilename = NULL;
-  memdst = FALSE;
   cinfo->err->trace_level = 0;
 
   /* Scan command line options, adjust parameters */
@@ -259,9 +262,28 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
       exit(EXIT_FAILURE);
 #endif
 
-    } else if (keymatch(arg, "baseline", 1)) {
+    } else if (keymatch(arg, "baseline", 2)) {
       /* Force baseline-compatible output (8-bit quantizer values). */
       force_baseline = TRUE;
+
+    } else if (keymatch(arg, "block", 2)) {
+      /* Set DCT block size. */
+#if defined DCT_SCALING_SUPPORTED && JPEG_LIB_VERSION_MAJOR >= 8 && \
+      (JPEG_LIB_VERSION_MAJOR > 8 || JPEG_LIB_VERSION_MINOR >= 3)
+      int val;
+
+      if (++argn >= argc)	/* advance to next argument */
+	usage();
+      if (sscanf(argv[argn], "%d", &val) != 1)
+	usage();
+      if (val < 1 || val > 16)
+	usage();
+      cinfo->block_size = val;
+#else
+      fprintf(stderr, "%s: sorry, block size setting not supported\n",
+	      progname);
+      exit(EXIT_FAILURE);
+#endif
 
     } else if (keymatch(arg, "dct", 2)) {
       /* Select DCT algorithm. */
@@ -282,11 +304,8 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
       static boolean printed_version = FALSE;
 
       if (! printed_version) {
-	fprintf(stderr, "%s version %s (build %s)\n",
-		PACKAGE_NAME, VERSION, BUILD);
-	fprintf(stderr, "%s\n\n", JCOPYRIGHT);
-	fprintf(stderr, "Emulating The Independent JPEG Group's software, version %s\n\n",
-		JVERSION);
+	fprintf(stderr, "Independent JPEG Group's CJPEG, version %s\n%s\n",
+		JVERSION, JCOPYRIGHT);
 	printed_version = TRUE;
       }
       cinfo->err->trace_level++;
@@ -295,9 +314,26 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
       /* Force a monochrome JPEG file to be generated. */
       jpeg_set_colorspace(cinfo, JCS_GRAYSCALE);
 
-    } else if (keymatch(arg, "rgb", 3)) {
+    } else if (keymatch(arg, "rgb", 3) || keymatch(arg, "rgb1", 4)) {
       /* Force an RGB JPEG file to be generated. */
+#if JPEG_LIB_VERSION_MAJOR >= 9
+      /* Note: Entropy table assignment in jpeg_set_colorspace depends
+       * on color_transform.
+       */
+      cinfo->color_transform = arg[3] ? JCT_SUBTRACT_GREEN : JCT_NONE;
+#endif
       jpeg_set_colorspace(cinfo, JCS_RGB);
+
+    } else if (keymatch(arg, "bgycc", 5)) {
+      /* Force a big gamut YCC JPEG file to be generated. */
+#if JPEG_LIB_VERSION_MAJOR >= 9 && \
+      (JPEG_LIB_VERSION_MAJOR > 9 || JPEG_LIB_VERSION_MINOR >= 1)
+      jpeg_set_colorspace(cinfo, JCS_BG_YCC);
+#else
+      fprintf(stderr, "%s: sorry, BG_YCC colorspace not supported\n",
+	      progname);
+      exit(EXIT_FAILURE);
+#endif
 
     } else if (keymatch(arg, "maxmemory", 3)) {
       /* Maximum memory in Kb (or Mb with 'm'). */
@@ -312,12 +348,16 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
 	lval *= 1000L;
       cinfo->mem->max_memory_to_use = lval * 1000L;
 
+    } else if (keymatch(arg, "nosmooth", 3)) {
+      /* Suppress fancy downsampling. */
+      cinfo->do_fancy_downsampling = FALSE;
+
     } else if (keymatch(arg, "optimize", 1) || keymatch(arg, "optimise", 1)) {
       /* Enable entropy parm optimization. */
 #ifdef ENTROPY_OPT_SUPPORTED
       cinfo->optimize_coding = TRUE;
 #else
-      fprintf(stderr, "%s: sorry, entropy optimization was not compiled in\n",
+      fprintf(stderr, "%s: sorry, entropy optimization was not compiled\n",
 	      progname);
       exit(EXIT_FAILURE);
 #endif
@@ -334,18 +374,8 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
       simple_progressive = TRUE;
       /* We must postpone execution until num_components is known. */
 #else
-      fprintf(stderr, "%s: sorry, progressive output was not compiled in\n",
+      fprintf(stderr, "%s: sorry, progressive output was not compiled\n",
 	      progname);
-      exit(EXIT_FAILURE);
-#endif
-
-    } else if (keymatch(arg, "memdst", 2)) {
-      /* Use in-memory destination manager */
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
-      memdst = TRUE;
-#else
-      fprintf(stderr, "%s: sorry, in-memory destination manager was not compiled in\n",
-              progname);
       exit(EXIT_FAILURE);
 #endif
 
@@ -401,6 +431,14 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
        * default sampling factors.
        */
 
+    } else if (keymatch(arg, "scale", 4)) {
+      /* Scale the image by a fraction M/N. */
+      if (++argn >= argc)	/* advance to next argument */
+	usage();
+      if (sscanf(argv[argn], "%u/%u",
+		 &cinfo->scale_num, &cinfo->scale_denom) != 2)
+	usage();
+
     } else if (keymatch(arg, "scans", 4)) {
       /* Set scan script. */
 #ifdef C_MULTISCAN_FILES_SUPPORTED
@@ -409,7 +447,7 @@ parse_switches (j_compress_ptr cinfo, int argc, char **argv,
       scansarg = argv[argn];
       /* We must postpone reading the file in case -progressive appears. */
 #else
-      fprintf(stderr, "%s: sorry, multi-scan output was not compiled in\n",
+      fprintf(stderr, "%s: sorry, multi-scan output was not compiled\n",
 	      progname);
       exit(EXIT_FAILURE);
 #endif
@@ -488,9 +526,7 @@ main (int argc, char **argv)
   int file_index;
   cjpeg_source_ptr src_mgr;
   FILE * input_file;
-  FILE * output_file = NULL;
-  unsigned char *outbuffer = NULL;
-  unsigned long outsize = 0;
+  FILE * output_file;
   JDIMENSION num_scanlines;
 
   /* On Mac, fetch a command line. */
@@ -533,21 +569,19 @@ main (int argc, char **argv)
   file_index = parse_switches(&cinfo, argc, argv, 0, FALSE);
 
 #ifdef TWO_FILE_COMMANDLINE
-  if (!memdst) {
-    /* Must have either -outfile switch or explicit output file name */
-    if (outfilename == NULL) {
-      if (file_index != argc-2) {
-        fprintf(stderr, "%s: must name one input and one output file\n",
-                progname);
-        usage();
-      }
-      outfilename = argv[file_index+1];
-    } else {
-      if (file_index != argc-1) {
-        fprintf(stderr, "%s: must name one input and one output file\n",
-                progname);
-        usage();
-      }
+  /* Must have either -outfile switch or explicit output file name */
+  if (outfilename == NULL) {
+    if (file_index != argc-2) {
+      fprintf(stderr, "%s: must name one input and one output file\n",
+	      progname);
+      usage();
+    }
+    outfilename = argv[file_index+1];
+  } else {
+    if (file_index != argc-1) {
+      fprintf(stderr, "%s: must name one input and one output file\n",
+	      progname);
+      usage();
     }
   }
 #else
@@ -575,7 +609,7 @@ main (int argc, char **argv)
       fprintf(stderr, "%s: can't open %s\n", progname, outfilename);
       exit(EXIT_FAILURE);
     }
-  } else if (!memdst) {
+  } else {
     /* default output file is stdout */
     output_file = write_stdout();
   }
@@ -598,12 +632,7 @@ main (int argc, char **argv)
   file_index = parse_switches(&cinfo, argc, argv, 0, TRUE);
 
   /* Specify data destination for compression */
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
-  if (memdst)
-    jpeg_mem_dest(&cinfo, &outbuffer, &outsize);
-  else
-#endif
-    jpeg_stdio_dest(&cinfo, output_file);
+  jpeg_stdio_dest(&cinfo, output_file);
 
   /* Start compressor */
   jpeg_start_compress(&cinfo, TRUE);
@@ -622,18 +651,12 @@ main (int argc, char **argv)
   /* Close files, if we opened them */
   if (input_file != stdin)
     fclose(input_file);
-  if (output_file != stdout && output_file != NULL)
+  if (output_file != stdout)
     fclose(output_file);
 
 #ifdef PROGRESS_REPORT
   end_progress_monitor((j_common_ptr) &cinfo);
 #endif
-
-  if (memdst) {
-    fprintf(stderr, "Compressed size:  %lu bytes\n", outsize);
-    if (outbuffer != NULL)
-      free(outbuffer);
-  }
 
   /* All done. */
   exit(jerr.num_warnings ? EXIT_WARNING : EXIT_SUCCESS);

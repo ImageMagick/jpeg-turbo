@@ -1,11 +1,9 @@
 /*
  * jdatadst.c
  *
- * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1994-1996, Thomas G. Lane.
  * Modified 2009-2012 by Guido Vollbeding.
- * Modifications:
- * Copyright (C) 2013, D. R. Commander.
+ * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains compression data destination routines for the case of
@@ -42,7 +40,6 @@ typedef my_destination_mgr * my_dest_ptr;
 #define OUTPUT_BUF_SIZE  4096	/* choose an efficiently fwrite'able size */
 
 
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
 /* Expanded data destination object for memory output */
 
 typedef struct {
@@ -56,7 +53,6 @@ typedef struct {
 } my_mem_destination_mgr;
 
 typedef my_mem_destination_mgr * my_mem_dest_ptr;
-#endif
 
 
 /*
@@ -78,13 +74,11 @@ init_destination (j_compress_ptr cinfo)
   dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
 
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
 METHODDEF(void)
 init_mem_destination (j_compress_ptr cinfo)
 {
   /* no work necessary here */
 }
-#endif
 
 
 /*
@@ -125,7 +119,6 @@ empty_output_buffer (j_compress_ptr cinfo)
   return TRUE;
 }
 
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
 METHODDEF(boolean)
 empty_mem_output_buffer (j_compress_ptr cinfo)
 {
@@ -155,7 +148,6 @@ empty_mem_output_buffer (j_compress_ptr cinfo)
 
   return TRUE;
 }
-#endif
 
 
 /*
@@ -184,16 +176,14 @@ term_destination (j_compress_ptr cinfo)
     ERREXIT(cinfo, JERR_FILE_WRITE);
 }
 
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
 METHODDEF(void)
 term_mem_destination (j_compress_ptr cinfo)
 {
   my_mem_dest_ptr dest = (my_mem_dest_ptr) cinfo->dest;
 
   *dest->outbuffer = dest->buffer;
-  *dest->outsize = (unsigned long)(dest->bufsize - dest->pub.free_in_buffer);
+  *dest->outsize = dest->bufsize - dest->pub.free_in_buffer;
 }
-#endif
 
 
 /*
@@ -227,7 +217,6 @@ jpeg_stdio_dest (j_compress_ptr cinfo, FILE * outfile)
 }
 
 
-#if JPEG_LIB_VERSION >= 80 || defined(MEM_SRCDST_SUPPORTED)
 /*
  * Prepare for output to a memory buffer.
  * The caller may supply an own initial buffer with appropriate size.
@@ -237,6 +226,9 @@ jpeg_stdio_dest (j_compress_ptr cinfo, FILE * outfile)
  * larger memory, so the buffer is available to the application after
  * finishing compression, and then the application is responsible for
  * freeing the requested memory.
+ * Note:  An initial buffer supplied by the caller is expected to be
+ * managed by the application.  The library does not free such buffer
+ * when allocating a larger buffer.
  */
 
 GLOBAL(void)
@@ -276,4 +268,3 @@ jpeg_mem_dest (j_compress_ptr cinfo,
   dest->pub.next_output_byte = dest->buffer = *outbuffer;
   dest->pub.free_in_buffer = dest->bufsize = *outsize;
 }
-#endif

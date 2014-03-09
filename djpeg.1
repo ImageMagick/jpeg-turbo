@@ -1,4 +1,4 @@
-.TH DJPEG 1 "18 January 2013"
+.TH DJPEG 1 "23 November 2013"
 .SH NAME
 djpeg \- decompress a JPEG file to an image file
 .SH SYNOPSIS
@@ -61,10 +61,12 @@ monochrome displays; also,
 runs noticeably faster in this mode.
 .TP
 .BI \-scale " M/N"
-Scale the output image by a factor M/N.  Currently the scale factor must be
-M/8, where M is an integer between 1 and 16 inclusive, or any reduced fraction
-thereof (such as 1/2, 3/4, etc.)  Scaling is handy if the image is larger than
-your screen; also,
+Scale the output image by a factor M/N.  Currently supported scale factors are
+M/N with all M from 1 to 16, where N is the source DCT size, which is 8 for
+baseline JPEG.  If the /N part is omitted, then M specifies the DCT scaled
+size to be applied on the given input.  For baseline JPEG this is equivalent
+to M/8 scaling, since the source DCT size for baseline JPEG is 8.
+Scaling is handy if the image is larger than your screen; also,
 .B djpeg
 runs much faster when scaling down the output.
 .TP
@@ -151,7 +153,7 @@ and
 .BR \-onepass .
 .TP
 .B \-nosmooth
-Use a faster, lower-quality upsampling routine.
+Don't use high-quality upsampling.
 .TP
 .B \-onepass
 Use one-pass instead of two-pass color quantization.  The one-pass method is
@@ -172,10 +174,6 @@ selects 4000000 bytes.  If more space is needed, temporary files will be used.
 .TP
 .BI \-outfile " name"
 Send output image to the named file, not to standard output.
-.TP
-.BI \-memsrc
-Load input file into memory before decompressing.  This feature was implemented
-mainly as a way of testing the in-memory source manager (jpeg_mem_src().)
 .TP
 .B \-verbose
 Enable debug printout.  More
@@ -247,12 +245,8 @@ Wallace, Gregory K.  "The JPEG Still Picture Compression Standard",
 Communications of the ACM, April 1991 (vol. 34, no. 4), pp. 30-44.
 .SH AUTHOR
 Independent JPEG Group
-.PP
-This file was modified by The libjpeg-turbo Project to include only information
-relevant to libjpeg-turbo, to wordsmith certain sections, and to describe
-features not present in libjpeg.
 .SH BUGS
-To avoid the Unisys LZW patent,
+To avoid the Unisys LZW patent (now expired),
 .B djpeg
 produces uncompressed GIF files.  These are larger than they should be, but
 are readable by standard GIF decoders.

@@ -1,7 +1,7 @@
 /*
  * jdarith.c
  *
- * Developed 1997-2009 by Guido Vollbeding.
+ * Developed 1997-2013 by Guido Vollbeding.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -145,7 +145,7 @@ arith_decode (j_decompress_ptr cinfo, unsigned char *st)
     e->a <<= 1;
   }
 
-  /* Fetch values from our compact representation of Table D.2:
+  /* Fetch values from our compact representation of Table D.3(D.2):
    * Qe values and probability estimation state machine
    */
   sv = *st;
@@ -206,7 +206,8 @@ process_restart (j_decompress_ptr cinfo)
       entropy->last_dc_val[ci] = 0;
       entropy->dc_context[ci] = 0;
     }
-    if (! cinfo->progressive_mode || cinfo->Ss) {
+    if ((! cinfo->progressive_mode && cinfo->lim_Se) ||
+	(cinfo->progressive_mode && cinfo->Ss)) {
       MEMZERO(entropy->ac_stats[compptr->ac_tbl_no], AC_STAT_BINS);
     }
   }
@@ -324,6 +325,7 @@ decode_mcu_AC_first (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
   unsigned char *st;
   int tbl, sign, k;
   int v, m;
+  const int * natural_order;
 
   /* Process restart marker if needed */
   if (cinfo->restart_interval) {
@@ -334,6 +336,8 @@ decode_mcu_AC_first (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
 
   if (entropy->ct == -1) return TRUE;	/* if error do nothing */
 
+  natural_order = cinfo->natural_order;
+
   /* There is always only one block per MCU */
   block = MCU_data[0];
   tbl = cinfo->cur_comp_info[0]->ac_tbl_no;
@@ -341,12 +345,15 @@ decode_mcu_AC_first (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
   /* Sections F.2.4.2 & F.1.4.4.2: Decoding of AC coefficients */
 
   /* Figure F.20: Decode_AC_coefficients */
-  for (k = cinfo->Ss; k <= cinfo->Se; k++) {
-    st = entropy->ac_stats[tbl] + 3 * (k - 1);
+  k = cinfo->Ss - 1;
+  do {
+    st = entropy->ac_stats[tbl] + 3 * k;
     if (arith_decode(cinfo, st)) break;		/* EOB flag */
-    while (arith_decode(cinfo, st + 1) == 0) {
-      st += 3; k++;
-      if (k > cinfo->Se) {
+    for (;;) {
+      k++;
+      if (arith_decode(cinfo, st + 1)) break;
+      st += 3;
+      if (k >= cinfo->Se) {
 	WARNMS(cinfo, JWRN_ARITH_BAD_CODE);
 	entropy->ct = -1;			/* spectral overflow */
 	return TRUE;
@@ -379,8 +386,8 @@ decode_mcu_AC_first (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
       if (arith_decode(cinfo, st)) v |= m;
     v += 1; if (sign) v = -v;
     /* Scale and output coefficient in natural (dezigzagged) order */
-    (*block)[jpeg_natural_order[k]] = (JCOEF) (v << cinfo->Al);
-  }
+    (*block)[natural_order[k]] = (JCOEF) (v << cinfo->Al);
+  } while (k < cinfo->Se);
 
   return TRUE;
 }
@@ -388,6 +395,8 @@ decode_mcu_AC_first (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
 
 /*
  * MCU decoding for DC successive approximation refinement scan.
+ * Note: we assume such scans can be multi-component,
+ * although the spec is not very clear on the point.
  */
 
 METHODDEF(boolean)
@@ -432,6 +441,7 @@ decode_mcu_AC_refine (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
   unsigned char *st;
   int tbl, k, kex;
   int p1, m1;
+  const int * natural_order;
 
   /* Process restart marker if needed */
   if (cinfo->restart_interval) {
@@ -442,6 +452,8 @@ decode_mcu_AC_refine (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
 
   if (entropy->ct == -1) return TRUE;	/* if error do nothing */
 
+  natural_order = cinfo->natural_order;
+
   /* There is always only one block per MCU */
   block = MCU_data[0];
   tbl = cinfo->cur_comp_info[0]->ac_tbl_no;
@@ -450,15 +462,18 @@ decode_mcu_AC_refine (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
   m1 = (-1) << cinfo->Al;	/* -1 in the bit position being coded */
 
   /* Establish EOBx (previous stage end-of-block) index */
-  for (kex = cinfo->Se; kex > 0; kex--)
-    if ((*block)[jpeg_natural_order[kex]]) break;
+  kex = cinfo->Se;
+  do {
+    if ((*block)[natural_order[kex]]) break;
+  } while (--kex);
 
-  for (k = cinfo->Ss; k <= cinfo->Se; k++) {
-    st = entropy->ac_stats[tbl] + 3 * (k - 1);
-    if (k > kex)
+  k = cinfo->Ss - 1;
+  do {
+    st = entropy->ac_stats[tbl] + 3 * k;
+    if (k >= kex)
       if (arith_decode(cinfo, st)) break;	/* EOB flag */
     for (;;) {
-      thiscoef = *block + jpeg_natural_order[k];
+      thiscoef = *block + natural_order[++k];
       if (*thiscoef) {				/* previously nonzero coef */
 	if (arith_decode(cinfo, st + 2)) {
 	  if (*thiscoef < 0)
@@ -475,14 +490,14 @@ decode_mcu_AC_refine (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
 	  *thiscoef = p1;
 	break;
       }
-      st += 3; k++;
-      if (k > cinfo->Se) {
+      st += 3;
+      if (k >= cinfo->Se) {
 	WARNMS(cinfo, JWRN_ARITH_BAD_CODE);
 	entropy->ct = -1;			/* spectral overflow */
 	return TRUE;
       }
     }
-  }
+  } while (k < cinfo->Se);
 
   return TRUE;
 }
@@ -501,6 +516,7 @@ decode_mcu (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
   unsigned char *st;
   int blkn, ci, tbl, sign, k;
   int v, m;
+  const int * natural_order;
 
   /* Process restart marker if needed */
   if (cinfo->restart_interval) {
@@ -510,6 +526,8 @@ decode_mcu (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
   }
 
   if (entropy->ct == -1) return TRUE;	/* if error do nothing */
+
+  natural_order = cinfo->natural_order;
 
   /* Outer loop handles each block in the MCU */
 
@@ -565,15 +583,19 @@ decode_mcu (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
 
     /* Sections F.2.4.2 & F.1.4.4.2: Decoding of AC coefficients */
 
+    if (cinfo->lim_Se == 0) continue;
     tbl = compptr->ac_tbl_no;
+    k = 0;
 
     /* Figure F.20: Decode_AC_coefficients */
-    for (k = 1; k <= DCTSIZE2 - 1; k++) {
-      st = entropy->ac_stats[tbl] + 3 * (k - 1);
+    do {
+      st = entropy->ac_stats[tbl] + 3 * k;
       if (arith_decode(cinfo, st)) break;	/* EOB flag */
-      while (arith_decode(cinfo, st + 1) == 0) {
-	st += 3; k++;
-	if (k > DCTSIZE2 - 1) {
+      for (;;) {
+	k++;
+	if (arith_decode(cinfo, st + 1)) break;
+	st += 3;
+	if (k >= cinfo->lim_Se) {
 	  WARNMS(cinfo, JWRN_ARITH_BAD_CODE);
 	  entropy->ct = -1;			/* spectral overflow */
 	  return TRUE;
@@ -605,8 +627,8 @@ decode_mcu (j_decompress_ptr cinfo, JBLOCKROW *MCU_data)
       while (m >>= 1)
 	if (arith_decode(cinfo, st)) v |= m;
       v += 1; if (sign) v = -v;
-      (*block)[jpeg_natural_order[k]] = (JCOEF) v;
-    }
+      (*block)[natural_order[k]] = (JCOEF) v;
+    } while (k < cinfo->lim_Se);
   }
 
   return TRUE;
@@ -631,7 +653,7 @@ start_pass (j_decompress_ptr cinfo)
 	goto bad;
     } else {
       /* need not check Ss/Se < 0 since they came from unsigned bytes */
-      if (cinfo->Se < cinfo->Ss || cinfo->Se > DCTSIZE2 - 1)
+      if (cinfo->Se < cinfo->Ss || cinfo->Se > cinfo->lim_Se)
 	goto bad;
       /* AC scans may have only one component */
       if (cinfo->comps_in_scan != 1)
@@ -680,7 +702,7 @@ start_pass (j_decompress_ptr cinfo)
      * This ought to be an error condition, but we make it a warning.
      */
     if (cinfo->Ss != 0 || cinfo->Ah != 0 || cinfo->Al != 0 ||
-	(cinfo->Se < DCTSIZE2 && cinfo->Se != DCTSIZE2 - 1))
+	(cinfo->Se < DCTSIZE2 && cinfo->Se != cinfo->lim_Se))
       WARNMS(cinfo, JWRN_NOT_SEQUENTIAL);
     /* Select MCU decoding routine */
     entropy->pub.decode_mcu = decode_mcu;
@@ -701,7 +723,8 @@ start_pass (j_decompress_ptr cinfo)
       entropy->last_dc_val[ci] = 0;
       entropy->dc_context[ci] = 0;
     }
-    if (! cinfo->progressive_mode || cinfo->Ss) {
+    if ((! cinfo->progressive_mode && cinfo->lim_Se) ||
+	(cinfo->progressive_mode && cinfo->Ss)) {
       tbl = compptr->ac_tbl_no;
       if (tbl < 0 || tbl >= NUM_ARITH_TBLS)
 	ERREXIT1(cinfo, JERR_NO_ARITH_TABLE, tbl);
@@ -723,6 +746,17 @@ start_pass (j_decompress_ptr cinfo)
 
 
 /*
+ * Finish up at the end of an arithmetic-compressed scan.
+ */
+
+METHODDEF(void)
+finish_pass (j_decompress_ptr cinfo)
+{
+  /* no work necessary here */
+}
+
+
+/*
  * Module initialization routine for arithmetic entropy decoding.
  */
 
@@ -735,8 +769,9 @@ jinit_arith_decoder (j_decompress_ptr cinfo)
   entropy = (arith_entropy_ptr)
     (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
 				SIZEOF(arith_entropy_decoder));
-  cinfo->entropy = (struct jpeg_entropy_decoder *) entropy;
+  cinfo->entropy = &entropy->pub;
   entropy->pub.start_pass = start_pass;
+  entropy->pub.finish_pass = finish_pass;
 
   /* Mark tables unallocated */
   for (i = 0; i < NUM_ARITH_TBLS; i++) {
