@@ -1,9 +1,11 @@
 /*
  * rdbmp.c
  *
+ * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1994-1996, Thomas G. Lane.
  * Modified 2009-2010 by Guido Vollbeding.
- * This file is part of the Independent JPEG Group's software.
+ * Modifications:
+ * Modified 2011 by Siarhei Siamashka.
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains routines to read input images in Microsoft "BMP"
@@ -220,10 +222,9 @@ preload_image (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
 {
   bmp_source_ptr source = (bmp_source_ptr) sinfo;
   register FILE *infile = source->pub.input_file;
-  register int c;
   register JSAMPROW out_ptr;
   JSAMPARRAY image_ptr;
-  JDIMENSION row, col;
+  JDIMENSION row;
   cd_progress_ptr progress = (cd_progress_ptr) cinfo->progress;
 
   /* Read the data into a virtual array in input-file row order. */
@@ -237,11 +238,11 @@ preload_image (j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
       ((j_common_ptr) cinfo, source->whole_image,
        row, (JDIMENSION) 1, TRUE);
     out_ptr = image_ptr[0];
-    for (col = source->row_width; col > 0; col--) {
-      /* inline copy of read_byte() for speed */
-      if ((c = getc(infile)) == EOF)
-	ERREXIT(cinfo, JERR_INPUT_EOF);
-      *out_ptr++ = (JSAMPLE) c;
+    if (fread(out_ptr, 1, source->row_width, infile) != source->row_width) {
+      if (feof(infile))
+        ERREXIT(cinfo, JERR_INPUT_EOF);
+      else
+        ERREXIT(cinfo, JERR_FILE_READ);
     }
   }
   if (progress != NULL)

@@ -1,7 +1,7 @@
 /*
  * jcarith.c
  *
- * Developed 1997-2013 by Guido Vollbeding.
+ * Developed 1997-2009 by Guido Vollbeding.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -223,7 +223,7 @@ arith_encode (j_compress_ptr cinfo, unsigned char *st, int val)
   register INT32 qe, temp;
   register int sv;
 
-  /* Fetch values from our compact representation of Table D.3(D.2):
+  /* Fetch values from our compact representation of Table D.2:
    * Qe values and probability estimation state machine
    */
   sv = *st;
@@ -331,14 +331,14 @@ emit_restart (j_compress_ptr cinfo, int restart_num)
   for (ci = 0; ci < cinfo->comps_in_scan; ci++) {
     compptr = cinfo->cur_comp_info[ci];
     /* DC needs no table for refinement scan */
-    if (cinfo->Ss == 0 && cinfo->Ah == 0) {
+    if (cinfo->progressive_mode == 0 || (cinfo->Ss == 0 && cinfo->Ah == 0)) {
       MEMZERO(entropy->dc_stats[compptr->dc_tbl_no], DC_STAT_BINS);
       /* Reset DC predictions to 0 */
       entropy->last_dc_val[ci] = 0;
       entropy->dc_context[ci] = 0;
     }
     /* AC needs no table when not present */
-    if (cinfo->Se) {
+    if (cinfo->progressive_mode == 0 || cinfo->Se) {
       MEMZERO(entropy->ac_stats[compptr->ac_tbl_no], AC_STAT_BINS);
     }
   }
@@ -362,6 +362,7 @@ METHODDEF(boolean)
 encode_mcu_DC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 {
   arith_entropy_ptr entropy = (arith_entropy_ptr) cinfo->entropy;
+  JBLOCKROW block;
   unsigned char *st;
   int blkn, ci, tbl;
   int v, v2, m;
@@ -380,13 +381,14 @@ encode_mcu_DC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 
   /* Encode the MCU data blocks */
   for (blkn = 0; blkn < cinfo->blocks_in_MCU; blkn++) {
+    block = MCU_data[blkn];
     ci = cinfo->MCU_membership[blkn];
     tbl = cinfo->cur_comp_info[ci]->dc_tbl_no;
 
     /* Compute the DC value after the required point transform by Al.
      * This is simply an arithmetic right shift.
      */
-    m = IRIGHT_SHIFT((int) (MCU_data[blkn][0][0]), cinfo->Al);
+    m = IRIGHT_SHIFT((int) ((*block)[0]), cinfo->Al);
 
     /* Sections F.1.4.1 & F.1.4.4.1: Encoding of DC coefficients */
 
@@ -451,7 +453,6 @@ METHODDEF(boolean)
 encode_mcu_AC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 {
   arith_entropy_ptr entropy = (arith_entropy_ptr) cinfo->entropy;
-  const int * natural_order;
   JBLOCKROW block;
   unsigned char *st;
   int tbl, k, ke;
@@ -468,8 +469,6 @@ encode_mcu_AC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
     entropy->restarts_to_go--;
   }
 
-  natural_order = cinfo->natural_order;
-
   /* Encode the MCU data block */
   block = MCU_data[0];
   tbl = cinfo->cur_comp_info[0]->ac_tbl_no;
@@ -477,26 +476,24 @@ encode_mcu_AC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
   /* Sections F.1.4.2 & F.1.4.4.2: Encoding of AC coefficients */
 
   /* Establish EOB (end-of-block) index */
-  ke = cinfo->Se;
-  do {
+  for (ke = cinfo->Se; ke > 0; ke--)
     /* We must apply the point transform by Al.  For AC coefficients this
      * is an integer division with rounding towards 0.  To do this portably
      * in C, we shift after obtaining the absolute value.
      */
-    if ((v = (*block)[natural_order[ke]]) >= 0) {
+    if ((v = (*block)[jpeg_natural_order[ke]]) >= 0) {
       if (v >>= cinfo->Al) break;
     } else {
       v = -v;
       if (v >>= cinfo->Al) break;
     }
-  } while (--ke);
 
   /* Figure F.5: Encode_AC_Coefficients */
-  for (k = cinfo->Ss - 1; k < ke;) {
-    st = entropy->ac_stats[tbl] + 3 * k;
+  for (k = cinfo->Ss; k <= ke; k++) {
+    st = entropy->ac_stats[tbl] + 3 * (k - 1);
     arith_encode(cinfo, st, 0);		/* EOB decision */
     for (;;) {
-      if ((v = (*block)[natural_order[++k]]) >= 0) {
+      if ((v = (*block)[jpeg_natural_order[k]]) >= 0) {
 	if (v >>= cinfo->Al) {
 	  arith_encode(cinfo, st + 1, 1);
 	  arith_encode(cinfo, entropy->fixed_bin, 0);
@@ -510,8 +507,7 @@ encode_mcu_AC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 	  break;
 	}
       }
-      arith_encode(cinfo, st + 1, 0);
-      st += 3;
+      arith_encode(cinfo, st + 1, 0); st += 3; k++;
     }
     st += 2;
     /* Figure F.8: Encoding the magnitude category of v */
@@ -538,9 +534,9 @@ encode_mcu_AC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
     while (m >>= 1)
       arith_encode(cinfo, st, (m & v) ? 1 : 0);
   }
-  /* Encode EOB decision only if k < cinfo->Se */
-  if (k < cinfo->Se) {
-    st = entropy->ac_stats[tbl] + 3 * k;
+  /* Encode EOB decision only if k <= cinfo->Se */
+  if (k <= cinfo->Se) {
+    st = entropy->ac_stats[tbl] + 3 * (k - 1);
     arith_encode(cinfo, st, 1);
   }
 
@@ -550,8 +546,6 @@ encode_mcu_AC_first (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 
 /*
  * MCU encoding for DC successive approximation refinement scan.
- * Note: we assume such scans can be multi-component,
- * although the spec is not very clear on the point.
  */
 
 METHODDEF(boolean)
@@ -593,7 +587,6 @@ METHODDEF(boolean)
 encode_mcu_AC_refine (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 {
   arith_entropy_ptr entropy = (arith_entropy_ptr) cinfo->entropy;
-  const int * natural_order;
   JBLOCKROW block;
   unsigned char *st;
   int tbl, k, ke, kex;
@@ -610,8 +603,6 @@ encode_mcu_AC_refine (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
     entropy->restarts_to_go--;
   }
 
-  natural_order = cinfo->natural_order;
-
   /* Encode the MCU data block */
   block = MCU_data[0];
   tbl = cinfo->cur_comp_info[0]->ac_tbl_no;
@@ -619,23 +610,21 @@ encode_mcu_AC_refine (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
   /* Section G.1.3.3: Encoding of AC coefficients */
 
   /* Establish EOB (end-of-block) index */
-  ke = cinfo->Se;
-  do {
+  for (ke = cinfo->Se; ke > 0; ke--)
     /* We must apply the point transform by Al.  For AC coefficients this
      * is an integer division with rounding towards 0.  To do this portably
      * in C, we shift after obtaining the absolute value.
      */
-    if ((v = (*block)[natural_order[ke]]) >= 0) {
+    if ((v = (*block)[jpeg_natural_order[ke]]) >= 0) {
       if (v >>= cinfo->Al) break;
     } else {
       v = -v;
       if (v >>= cinfo->Al) break;
     }
-  } while (--ke);
 
   /* Establish EOBx (previous stage end-of-block) index */
   for (kex = ke; kex > 0; kex--)
-    if ((v = (*block)[natural_order[kex]]) >= 0) {
+    if ((v = (*block)[jpeg_natural_order[kex]]) >= 0) {
       if (v >>= cinfo->Ah) break;
     } else {
       v = -v;
@@ -643,12 +632,12 @@ encode_mcu_AC_refine (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
     }
 
   /* Figure G.10: Encode_AC_Coefficients_SA */
-  for (k = cinfo->Ss - 1; k < ke;) {
-    st = entropy->ac_stats[tbl] + 3 * k;
-    if (k >= kex)
+  for (k = cinfo->Ss; k <= ke; k++) {
+    st = entropy->ac_stats[tbl] + 3 * (k - 1);
+    if (k > kex)
       arith_encode(cinfo, st, 0);	/* EOB decision */
     for (;;) {
-      if ((v = (*block)[natural_order[++k]]) >= 0) {
+      if ((v = (*block)[jpeg_natural_order[k]]) >= 0) {
 	if (v >>= cinfo->Al) {
 	  if (v >> 1)			/* previously nonzero coef */
 	    arith_encode(cinfo, st + 2, (v & 1));
@@ -670,13 +659,12 @@ encode_mcu_AC_refine (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 	  break;
 	}
       }
-      arith_encode(cinfo, st + 1, 0);
-      st += 3;
+      arith_encode(cinfo, st + 1, 0); st += 3; k++;
     }
   }
-  /* Encode EOB decision only if k < cinfo->Se */
-  if (k < cinfo->Se) {
-    st = entropy->ac_stats[tbl] + 3 * k;
+  /* Encode EOB decision only if k <= cinfo->Se */
+  if (k <= cinfo->Se) {
+    st = entropy->ac_stats[tbl] + 3 * (k - 1);
     arith_encode(cinfo, st, 1);
   }
 
@@ -692,13 +680,11 @@ METHODDEF(boolean)
 encode_mcu (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 {
   arith_entropy_ptr entropy = (arith_entropy_ptr) cinfo->entropy;
-  const int * natural_order;
+  jpeg_component_info * compptr;
   JBLOCKROW block;
   unsigned char *st;
-  int tbl, k, ke;
+  int blkn, ci, tbl, k, ke;
   int v, v2, m;
-  int blkn, ci;
-  jpeg_component_info * compptr;
 
   /* Emit restart marker if needed */
   if (cinfo->restart_interval) {
@@ -710,8 +696,6 @@ encode_mcu (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
     }
     entropy->restarts_to_go--;
   }
-
-  natural_order = cinfo->natural_order;
 
   /* Encode the MCU data blocks */
   for (blkn = 0; blkn < cinfo->blocks_in_MCU; blkn++) {
@@ -772,21 +756,18 @@ encode_mcu (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
 
     /* Sections F.1.4.2 & F.1.4.4.2: Encoding of AC coefficients */
 
-    if ((ke = cinfo->lim_Se) == 0) continue;
     tbl = compptr->ac_tbl_no;
 
     /* Establish EOB (end-of-block) index */
-    do {
-      if ((*block)[natural_order[ke]]) break;
-    } while (--ke);
+    for (ke = DCTSIZE2 - 1; ke > 0; ke--)
+      if ((*block)[jpeg_natural_order[ke]]) break;
 
     /* Figure F.5: Encode_AC_Coefficients */
-    for (k = 0; k < ke;) {
-      st = entropy->ac_stats[tbl] + 3 * k;
+    for (k = 1; k <= ke; k++) {
+      st = entropy->ac_stats[tbl] + 3 * (k - 1);
       arith_encode(cinfo, st, 0);	/* EOB decision */
-      while ((v = (*block)[natural_order[++k]]) == 0) {
-	arith_encode(cinfo, st + 1, 0);
-	st += 3;
+      while ((v = (*block)[jpeg_natural_order[k]]) == 0) {
+	arith_encode(cinfo, st + 1, 0); st += 3; k++;
       }
       arith_encode(cinfo, st + 1, 1);
       /* Figure F.6: Encoding nonzero value v */
@@ -822,9 +803,9 @@ encode_mcu (j_compress_ptr cinfo, JBLOCKROW *MCU_data)
       while (m >>= 1)
 	arith_encode(cinfo, st, (m & v) ? 1 : 0);
     }
-    /* Encode EOB decision only if k < cinfo->lim_Se */
-    if (k < cinfo->lim_Se) {
-      st = entropy->ac_stats[tbl] + 3 * k;
+    /* Encode EOB decision only if k <= DCTSIZE2 - 1 */
+    if (k <= DCTSIZE2 - 1) {
+      st = entropy->ac_stats[tbl] + 3 * (k - 1);
       arith_encode(cinfo, st, 1);
     }
   }
@@ -873,7 +854,7 @@ start_pass (j_compress_ptr cinfo, boolean gather_statistics)
   for (ci = 0; ci < cinfo->comps_in_scan; ci++) {
     compptr = cinfo->cur_comp_info[ci];
     /* DC needs no table for refinement scan */
-    if (cinfo->Ss == 0 && cinfo->Ah == 0) {
+    if (cinfo->progressive_mode == 0 || (cinfo->Ss == 0 && cinfo->Ah == 0)) {
       tbl = compptr->dc_tbl_no;
       if (tbl < 0 || tbl >= NUM_ARITH_TBLS)
 	ERREXIT1(cinfo, JERR_NO_ARITH_TABLE, tbl);
@@ -886,7 +867,7 @@ start_pass (j_compress_ptr cinfo, boolean gather_statistics)
       entropy->dc_context[ci] = 0;
     }
     /* AC needs no table when not present */
-    if (cinfo->Se) {
+    if (cinfo->progressive_mode == 0 || cinfo->Se) {
       tbl = compptr->ac_tbl_no;
       if (tbl < 0 || tbl >= NUM_ARITH_TBLS)
 	ERREXIT1(cinfo, JERR_NO_ARITH_TABLE, tbl);
@@ -929,7 +910,7 @@ jinit_arith_encoder (j_compress_ptr cinfo)
   entropy = (arith_entropy_ptr)
     (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
 				SIZEOF(arith_entropy_encoder));
-  cinfo->entropy = &entropy->pub;
+  cinfo->entropy = (struct jpeg_entropy_encoder *) entropy;
   entropy->pub.start_pass = start_pass;
   entropy->pub.finish_pass = finish_pass;
 

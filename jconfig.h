@@ -1,6 +1,12 @@
 /* jconfig.vc --- jconfig.h for Microsoft Visual C++ on Windows 95 or NT. */
 /* see jconfig.txt for explanations */
 
+#define JPEG_LIB_VERSION 80
+#define LIBJPEG_TURBO_VERSION 1.3.0
+#define C_ARITH_CODING_SUPPORTED
+#define D_ARITH_CODING_SUPPORTED
+#define MEM_SRCDST_SUPPORTED
+
 #define HAVE_PROTOTYPES
 #define HAVE_UNSIGNED_CHAR
 #define HAVE_UNSIGNED_SHORT
@@ -15,37 +21,21 @@
 #undef NEED_SHORT_EXTERNAL_NAMES
 #undef INCOMPLETE_TYPES_BROKEN
 
-/* Define "boolean" as unsigned char, not enum, per Windows custom */
+/* Define "boolean" as unsigned char, not int, per Windows custom */
 #ifndef __RPCNDR_H__		/* don't conflict if rpcndr.h already read */
 typedef unsigned char boolean;
 #endif
-#ifndef FALSE			/* in case these macros already exist */
-#define FALSE	0		/* values of boolean */
-#endif
-#ifndef TRUE
-#define TRUE	1
-#endif
 #define HAVE_BOOLEAN		/* prevent jmorecfg.h from redefining it */
 
+/* Define "INT32" as int, not long, per Windows custom */
+#if !(defined(_BASETSD_H_) || defined(_BASETSD_H))   /* don't conflict if basetsd.h already read */
+typedef short INT16;
+typedef signed int INT32;
+#endif
+#define XMD_H                   /* prevent jmorecfg.h from redefining it */
 
 #ifdef JPEG_INTERNALS
 
 #undef RIGHT_SHIFT_IS_UNSIGNED
 
 #endif /* JPEG_INTERNALS */
-
-#ifdef JPEG_CJPEG_DJPEG
-
-#define BMP_SUPPORTED		/* BMP image file format */
-#define GIF_SUPPORTED		/* GIF image file format */
-#define PPM_SUPPORTED		/* PBMPLUS PPM/PGM image file format */
-#undef RLE_SUPPORTED		/* Utah RLE image file format */
-#define TARGA_SUPPORTED		/* Targa image file format */
-
-#define TWO_FILE_COMMANDLINE	/* optional */
-#define USE_SETMODE		/* Microsoft has setmode() */
-#undef NEED_SIGNAL_CATCHER
-#undef DONT_USE_B_MODE
-#undef PROGRESS_REPORT		/* optional */
-
-#endif /* JPEG_CJPEG_DJPEG */

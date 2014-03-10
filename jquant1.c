@@ -1,9 +1,10 @@
 /*
  * jquant1.c
  *
+ * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1996, Thomas G. Lane.
- * Modified 2011 by Guido Vollbeding.
- * This file is part of the Independent JPEG Group's software.
+ * Modifications:
+ * Copyright (C) 2009, D. R. Commander
  * For conditions of distribution and use, see the accompanying README file.
  *
  * This file contains 1-pass color quantization (color mapping) routines.
@@ -194,7 +195,10 @@ select_ncolors (j_decompress_ptr cinfo, int Ncolors[])
   int total_colors, iroot, i, j;
   boolean changed;
   long temp;
-  static const int RGB_order[3] = { RGB_GREEN, RGB_RED, RGB_BLUE };
+  int RGB_order[3] = { RGB_GREEN, RGB_RED, RGB_BLUE };
+  RGB_order[0] = rgb_green[cinfo->out_color_space];
+  RGB_order[1] = rgb_red[cinfo->out_color_space];
+  RGB_order[2] = rgb_blue[cinfo->out_color_space];
 
   /* We can allocate at least the nc'th root of max_colors per component. */
   /* Compute floor(nc'th root of max_colors). */
@@ -531,8 +535,8 @@ quantize_ord_dither (j_decompress_ptr cinfo, JSAMPARRAY input_buf,
 
   for (row = 0; row < num_rows; row++) {
     /* Initialize output values to 0 so can process components separately */
-    FMEMZERO((void FAR *) output_buf[row],
-	     (size_t) (width * SIZEOF(JSAMPLE)));
+    jzero_far((void FAR *) output_buf[row],
+	      (size_t) (width * SIZEOF(JSAMPLE)));
     row_index = cquantize->row_index;
     for (ci = 0; ci < nc; ci++) {
       input_ptr = input_buf[row] + ci;
@@ -636,8 +640,8 @@ quantize_fs_dither (j_decompress_ptr cinfo, JSAMPARRAY input_buf,
 
   for (row = 0; row < num_rows; row++) {
     /* Initialize output values to 0 so can process components separately */
-    FMEMZERO((void FAR *) output_buf[row],
-	     (size_t) (width * SIZEOF(JSAMPLE)));
+    jzero_far((void FAR *) output_buf[row],
+	      (size_t) (width * SIZEOF(JSAMPLE)));
     for (ci = 0; ci < nc; ci++) {
       input_ptr = input_buf[row] + ci;
       output_ptr = output_buf[row];
@@ -782,7 +786,7 @@ start_pass_1_quant (j_decompress_ptr cinfo, boolean is_pre_scan)
     /* Initialize the propagated errors to zero. */
     arraysize = (size_t) ((cinfo->output_width + 2) * SIZEOF(FSERROR));
     for (i = 0; i < cinfo->out_color_components; i++)
-      FMEMZERO((void FAR *) cquantize->fserrors[i], arraysize);
+      jzero_far((void FAR *) cquantize->fserrors[i], arraysize);
     break;
   default:
     ERREXIT(cinfo, JERR_NOT_COMPILED);
