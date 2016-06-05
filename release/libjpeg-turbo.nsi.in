@@ -41,7 +41,12 @@ Section "@CMAKE_PROJECT_NAME@ SDK for @INST_PLATFORM@ (required)"
 !endif
 	SetOutPath $INSTDIR\bin
 !ifdef GCC
-	File "/oname=libjpeg-@DLL_VERSION@.dll" "@CMAKE_BINARY_DIR@\sharedlib\libjpeg-*.dll" 
+	File "@CMAKE_BINARY_DIR@\libturbojpeg.dll"
+!else
+	File "@CMAKE_BINARY_DIR@\${BUILDDIR}turbojpeg.dll"
+!endif
+!ifdef GCC
+	File "/oname=libjpeg-@DLL_VERSION@.dll" "@CMAKE_BINARY_DIR@\sharedlib\libjpeg-*.dll"
 !else
 	File "@CMAKE_BINARY_DIR@\sharedlib\${BUILDDIR}jpeg@DLL_VERSION@.dll"
 !endif
@@ -105,6 +110,7 @@ Section "Uninstall"
 
 !ifdef GCC
 	Delete $INSTDIR\bin\libjpeg-@DLL_VERSION@.dll
+	Delete $INSTDIR\bin\libturbojpeg.dll
 	Delete $SYSDIR\libturbojpeg.dll
 	Delete $INSTDIR\lib\libturbojpeg.dll.a"
 	Delete $INSTDIR\lib\libturbojpeg.a"
@@ -112,6 +118,7 @@ Section "Uninstall"
 	Delete $INSTDIR\lib\libjpeg.a"
 !else
 	Delete $INSTDIR\bin\jpeg@DLL_VERSION@.dll
+	Delete $INSTDIR\bin\turbojpeg.dll
 	Delete $SYSDIR\turbojpeg.dll
 	Delete $INSTDIR\lib\jpeg.lib
 	Delete $INSTDIR\lib\jpeg-static.lib
