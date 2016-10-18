@@ -199,6 +199,7 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKGNAME = @PKGNAME@
+PKG_CONFIG = @PKG_CONFIG@
 RANLIB = @RANLIB@
 RPMARCH = @RPMARCH@
 RPM_CONFIG_ARGS = @RPM_CONFIG_ARGS@
@@ -269,6 +270,7 @@ JAVASOURCES = org/libjpegturbo/turbojpeg/TJ.java \
 	org/libjpegturbo/turbojpeg/TJCompressor.java \
 	org/libjpegturbo/turbojpeg/TJCustomFilter.java \
 	org/libjpegturbo/turbojpeg/TJDecompressor.java \
+	org/libjpegturbo/turbojpeg/TJException.java \
 	org/libjpegturbo/turbojpeg/TJScalingFactor.java \
 	org/libjpegturbo/turbojpeg/TJTransform.java \
 	org/libjpegturbo/turbojpeg/TJTransformer.java \
@@ -287,6 +289,7 @@ JNIHEADERS = org_libjpegturbo_turbojpeg_TJ.h \
 @WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJCompressor.class \
 @WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJCustomFilter.class \
 @WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJDecompressor.class \
+@WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJException.class \
 @WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJLoader.class \
 @WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJScalingFactor.class \
 @WITH_JAVA_TRUE@	org/libjpegturbo/turbojpeg/TJTransform.class \
@@ -518,7 +521,7 @@ org/libjpegturbo/turbojpeg/TJLoader.java: $(srcdir)/org/libjpegturbo/turbojpeg/T
 
 @WITH_JAVA_TRUE@all: all-am turbojpeg.jar
 
-@WITH_JAVA_TRUE@turbojpeg.jar: $(JAVA_CLASSES) ${srcdir}/MANIFEST.MF
+@WITH_JAVA_TRUE@turbojpeg.jar: classnoinst.stamp ${srcdir}/MANIFEST.MF
 @WITH_JAVA_TRUE@	$(JAR) cfm turbojpeg.jar ${srcdir}/MANIFEST.MF $(JAVA_CLASSES)
 
 @WITH_JAVA_TRUE@clean-local:
