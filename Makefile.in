@@ -539,7 +539,6 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 PKGNAME = @PKGNAME@
-PKG_CONFIG = @PKG_CONFIG@
 RANLIB = @RANLIB@
 RPMARCH = @RPMARCH@
 RPM_CONFIG_ARGS = @RPM_CONFIG_ARGS@
@@ -714,6 +713,10 @@ EXTRA_DIST = win release $(DOCS) testimages CMakeLists.txt \
 @WITH_12BIT_TRUE@MD5_PPM_3x2_FLOAT_32BIT = 42876ab9e5c2f76a87d08db5fbd57956
 @WITH_12BIT_FALSE@MD5_PPM_3x2_FLOAT_64BIT = 0e917a34193ef976b679a6b069b1be26
 @WITH_12BIT_TRUE@MD5_PPM_3x2_FLOAT_64BIT = d6fbc71153b3d8ded484dbc17c7b9cf4
+@WITH_12BIT_FALSE@MD5_JPEG_3x2_FLOAT_PROG_387 = 1657664a410e0822c924b54f6f65e6e9
+@WITH_12BIT_TRUE@MD5_JPEG_3x2_FLOAT_PROG_387 = bc6dbbefac2872f6b9d6c4a0ae60c3c0
+@WITH_12BIT_FALSE@MD5_PPM_3x2_FLOAT_387 = cb0a1f027f3d2917c902b5640214e025
+@WITH_12BIT_TRUE@MD5_PPM_3x2_FLOAT_387 = bcc5723c61560463ac60f772e742d092
 @WITH_12BIT_FALSE@MD5_JPEG_3x2_IFAST_PROG = 1ee5d2c1a77f2da495f993c8c7cceca5
 @WITH_12BIT_TRUE@MD5_JPEG_3x2_IFAST_PROG = 1396cc2b7185cfe943d408c9d305339e
 @WITH_12BIT_FALSE@MD5_PPM_3x2_IFAST = fd283664b3b49127984af0a7f118fccd
@@ -2498,7 +2501,7 @@ test: tjquicktest tjbittest bittest
 # Test compressing from/decompressing to an arbitrary subregion of a larger
 # image buffer
 @WITH_TURBOJPEG_TRUE@	cp $(srcdir)/testimages/testorig.ppm testout_tile.ppm
-@WITH_TURBOJPEG_TRUE@	./tjbench testout_tile.ppm 95 -rgb -quiet -tile -benchtime 0.01 >/dev/null 2>&1
+@WITH_TURBOJPEG_TRUE@	./tjbench testout_tile.ppm 95 -rgb -quiet -tile -benchtime 0.01 -warmup 0 >/dev/null 2>&1
 @WITH_TURBOJPEG_TRUE@	for i in 8 16 32 64 128; do \
 @WITH_TURBOJPEG_TRUE@		md5/md5cmp $(MD5_PPM_GRAY_TILE) testout_tile_GRAY_Q95_$$i\x$$i.ppm; \
 @WITH_TURBOJPEG_TRUE@	done
@@ -2517,7 +2520,7 @@ test: tjquicktest tjbittest bittest
 @WITH_TURBOJPEG_TRUE@	done
 @WITH_TURBOJPEG_TRUE@	rm -f testout_tile_GRAY_* testout_tile_420_* testout_tile_422_* testout_tile_444_*
 
-@WITH_TURBOJPEG_TRUE@	./tjbench testout_tile.ppm 95 -rgb -fastupsample -quiet -tile -benchtime 0.01 >/dev/null 2>&1
+@WITH_TURBOJPEG_TRUE@	./tjbench testout_tile.ppm 95 -rgb -fastupsample -quiet -tile -benchtime 0.01 -warmup 0 >/dev/null 2>&1
 @WITH_TURBOJPEG_TRUE@	md5/md5cmp $(MD5_PPM_420M_8x8_TILE) testout_tile_420_Q95_8x8.ppm
 @WITH_TURBOJPEG_TRUE@	for i in 16 32 64 128; do \
 @WITH_TURBOJPEG_TRUE@		md5/md5cmp $(MD5_PPM_420M_TILE) testout_tile_420_Q95_$$i\x$$i.ppm; \
@@ -2628,6 +2631,9 @@ test: tjquicktest tjbittest bittest
 #                  x86-64 compilers)
 # FLOATTEST=64bit  validate against the exepected results from the C code
 #                  when running on a 64-bit FPU
+# FLOATTEST=387  validate against the expected results from the C code when
+#                the 387 FPU is being used for floating point math (which is
+#                generally the default with x86 compilers)
 
 # CC: RGB->YCC  SAMP: fullsize/int  FDCT: float  ENT: prog huff
 	./cjpeg -sample 3x2 -dct float -prog -outfile testout_3x2_float_prog.jpg $(srcdir)/testimages/testorig.ppm
@@ -2635,6 +2641,8 @@ test: tjquicktest tjbittest bittest
 		md5/md5cmp $(MD5_JPEG_3x2_FLOAT_PROG_SSE) testout_3x2_float_prog.jpg; \
 	elif [ "${FLOATTEST}" = "32bit" -o "${FLOATTEST}" = "64bit" ]; then \
 		md5/md5cmp $(MD5_JPEG_3x2_FLOAT_PROG_32BIT) testout_3x2_float_prog.jpg; \
+	elif [ "${FLOATTEST}" = "387" ]; then \
+		md5/md5cmp $(MD5_JPEG_3x2_FLOAT_PROG_387) testout_3x2_float_prog.jpg; \
 	fi
 # CC: YCC->RGB  SAMP: fullsize/int  IDCT: float  ENT: prog huff
 	./djpeg -dct float -outfile testout_3x2_float.ppm testout_3x2_float_prog.jpg
@@ -2644,6 +2652,8 @@ test: tjquicktest tjbittest bittest
 		md5/md5cmp $(MD5_PPM_3x2_FLOAT_32BIT) testout_3x2_float.ppm; \
 	elif [ "${FLOATTEST}" = "64bit" ]; then \
 		md5/md5cmp $(MD5_PPM_3x2_FLOAT_64BIT) testout_3x2_float.ppm; \
+	elif [ "${FLOATTEST}" = "387" ]; then \
+		md5/md5cmp $(MD5_PPM_3x2_FLOAT_387) testout_3x2_float.ppm; \
 	fi
 	rm -f testout_3x2_float.ppm testout_3x2_float_prog.jpg
 
