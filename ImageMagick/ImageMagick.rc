@@ -1,17 +1,9 @@
 #include "winver.h"
-
-#define THIS_PROJECT_VERSION_NUM		2,0,5,0
-#define THIS_PROJECT_VERSION_STRING		"2.0.5 (2020-06-24)"
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// Version
-//
-/////////////////////////////////////////////////////////////////////////////
+#include "ImageMagick.version.h"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION THIS_PROJECT_VERSION_NUM
- PRODUCTVERSION THIS_PROJECT_VERSION_NUM
+ FILEVERSION DELEGATE_VERSION_NUM
+ PRODUCTVERSION DELEGATE_VERSION_NUM
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -30,8 +22,8 @@ BEGIN
             VALUE "FileDescription", "ImageMagick Studio library and utility programs\0"
             VALUE "OriginalFilename", "jpeg-turbo\0"
             VALUE "InternalName", "ImageMagick Studio\0"
-            VALUE "FileVersion", THIS_PROJECT_VERSION_STRING "\0"
-            VALUE "ProductVersion", THIS_PROJECT_VERSION_STRING "\0"
+            VALUE "FileVersion", DELEGATE_VERSION_STRING "\0"
+            VALUE "ProductVersion", DELEGATE_VERSION_STRING "\0"
             VALUE "CompanyName", "D. R. Commander\0"
             VALUE "LegalCopyright", "Copyright (C) 2009-2012, D. R. Commander\0"
             VALUE "Comments", "http://www.libjpeg-turbo.org\0"
