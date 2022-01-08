@@ -5,7 +5,9 @@
 #define C_ARITH_CODING_SUPPORTED
 #define D_ARITH_CODING_SUPPORTED
 #define MEM_SRCDST_SUPPORTED
+#if !_M_ARM64
 #define WITH_SIMD
+#endif
 
 #define BITS_IN_JSAMPLE  8      /* use 8 or 12 */
 
