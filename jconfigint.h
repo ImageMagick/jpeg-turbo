@@ -57,7 +57,9 @@
 
 #undef C_ARITH_CODING_SUPPORTED
 #undef D_ARITH_CODING_SUPPORTED
-#undef WITH_SIMD
+#if !_M_ARM64
+#define WITH_SIMD
+#endif
 
 #if BITS_IN_JSAMPLE == 8
 
