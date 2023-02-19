@@ -5,7 +5,7 @@
  * Copyright (C) 1991-1997, Thomas G. Lane.
  * Modified 2019 by Guido Vollbeding.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2021, D. R. Commander.
+ * Copyright (C) 2021-2022, D. R. Commander.
  * For conditions of distribution and use, see the accompanying README.ijg
  * file.
  *
@@ -34,8 +34,10 @@
  */
 
 #include "cdjpeg.h"             /* Common decls for cjpeg/djpeg applications */
+#include "jsamplecomp.h"
 
-#ifdef GIF_SUPPORTED
+#if defined(GIF_SUPPORTED) && \
+    (BITS_IN_JSAMPLE != 16 || defined(C_LOSSLESS_SUPPORTED))
 
 
 /* Macros to deal with unsigned chars as efficiently as compiler allows */
@@ -45,7 +47,7 @@ typedef unsigned char U_CHAR;
 
 
 #define ReadOK(file, buffer, len) \
-  (JFREAD(file, buffer, len) == ((size_t)(len)))
+  (fread(buffer, 1, len, file) == ((size_t)(len)))
 
 
 #define MAXCOLORMAPSIZE  256    /* max # of colors in a GIF colormap */
@@ -89,7 +91,7 @@ typedef struct {
 
   j_compress_ptr cinfo;         /* back link saves passing separate parm */
 
-  JSAMPARRAY colormap;          /* GIF colormap (converted to my format) */
+  _JSAMPARRAY colormap;         /* GIF colormap (converted to my format) */
 
   /* State for GetCode and LZWReadByte */
   U_CHAR code_buf[256 + 4];     /* current input data block */
@@ -342,10 +344,10 @@ LZWReadByte(gif_source_ptr sinfo)
 
 
 LOCAL(void)
-ReadColorMap(gif_source_ptr sinfo, int cmaplen, JSAMPARRAY cmap)
+ReadColorMap(gif_source_ptr sinfo, int cmaplen, _JSAMPARRAY cmap)
 /* Read a GIF colormap */
 {
-  int i;
+  int i, gray = 1;
 
   for (i = 0; i < cmaplen; i++) {
 #if BITS_IN_JSAMPLE == 8
@@ -353,9 +355,17 @@ ReadColorMap(gif_source_ptr sinfo, int cmaplen, JSAMPARRAY cmap)
 #else
 #define UPSCALE(x)  ((x) << (BITS_IN_JSAMPLE - 8))
 #endif
-    cmap[CM_RED][i]   = (JSAMPLE)UPSCALE(ReadByte(sinfo));
-    cmap[CM_GREEN][i] = (JSAMPLE)UPSCALE(ReadByte(sinfo));
-    cmap[CM_BLUE][i]  = (JSAMPLE)UPSCALE(ReadByte(sinfo));
+    cmap[CM_RED][i]   = (_JSAMPLE)UPSCALE(ReadByte(sinfo));
+    cmap[CM_GREEN][i] = (_JSAMPLE)UPSCALE(ReadByte(sinfo));
+    cmap[CM_BLUE][i]  = (_JSAMPLE)UPSCALE(ReadByte(sinfo));
+    if (cmap[CM_RED][i] != cmap[CM_GREEN][i] ||
+        cmap[CM_GREEN][i] != cmap[CM_BLUE][i])
+      gray = 0;
+  }
+
+  if (sinfo->cinfo->in_color_space == JCS_RGB && gray) {
+    sinfo->cinfo->in_color_space = JCS_GRAYSCALE;
+    sinfo->cinfo->input_components = 1;
   }
 }
 
@@ -419,7 +429,7 @@ start_input_gif(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
     TRACEMS(cinfo, 1, JTRC_GIF_NONSQUARE);
 
   /* Allocate space to store the colormap */
-  source->colormap = (*cinfo->mem->alloc_sarray)
+  source->colormap = (_JSAMPARRAY)(*cinfo->mem->alloc_sarray)
     ((j_common_ptr)cinfo, JPOOL_IMAGE, (JDIMENSION)MAXCOLORMAPSIZE,
      (JDIMENSION)NUMCOLORS);
   colormaplen = 0;              /* indicate initialization */
@@ -516,22 +526,25 @@ start_input_gif(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
     source->pub.get_pixel_rows = get_pixel_rows;
   }
 
+  if (cinfo->in_color_space != JCS_GRAYSCALE) {
+    cinfo->in_color_space = JCS_RGB;
+    cinfo->input_components = NUMCOLORS;
+  }
+
   /* Create compressor input buffer. */
-  source->pub.buffer = (*cinfo->mem->alloc_sarray)
-    ((j_common_ptr)cinfo, JPOOL_IMAGE, (JDIMENSION)width * NUMCOLORS,
-     (JDIMENSION)1);
+  source->pub._buffer = (_JSAMPARRAY)(*cinfo->mem->alloc_sarray)
+    ((j_common_ptr)cinfo, JPOOL_IMAGE,
+     (JDIMENSION)width * cinfo->input_components, (JDIMENSION)1);
   source->pub.buffer_height = 1;
 
   /* Pad colormap for safety. */
   for (c = colormaplen; c < source->clear_code; c++) {
     source->colormap[CM_RED][c]   =
     source->colormap[CM_GREEN][c] =
-    source->colormap[CM_BLUE][c]  = CENTERJSAMPLE;
+    source->colormap[CM_BLUE][c]  = _CENTERJSAMPLE;
   }
 
   /* Return info about the image. */
-  cinfo->in_color_space = JCS_RGB;
-  cinfo->input_components = NUMCOLORS;
   cinfo->data_precision = BITS_IN_JSAMPLE; /* we always rescale data to this */
   cinfo->image_width = width;
   cinfo->image_height = height;
@@ -551,16 +564,23 @@ get_pixel_rows(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
 {
   gif_source_ptr source = (gif_source_ptr)sinfo;
   register int c;
-  register JSAMPROW ptr;
+  register _JSAMPROW ptr;
   register JDIMENSION col;
-  register JSAMPARRAY colormap = source->colormap;
+  register _JSAMPARRAY colormap = source->colormap;
 
-  ptr = source->pub.buffer[0];
-  for (col = cinfo->image_width; col > 0; col--) {
-    c = LZWReadByte(source);
-    *ptr++ = colormap[CM_RED][c];
-    *ptr++ = colormap[CM_GREEN][c];
-    *ptr++ = colormap[CM_BLUE][c];
+  ptr = source->pub._buffer[0];
+  if (cinfo->in_color_space == JCS_GRAYSCALE) {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = LZWReadByte(source);
+      *ptr++ = colormap[CM_RED][c];
+    }
+  } else {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = LZWReadByte(source);
+      *ptr++ = colormap[CM_RED][c];
+      *ptr++ = colormap[CM_GREEN][c];
+      *ptr++ = colormap[CM_BLUE][c];
+    }
   }
   return 1;
 }
@@ -576,7 +596,7 @@ METHODDEF(JDIMENSION)
 load_interlaced_image(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
 {
   gif_source_ptr source = (gif_source_ptr)sinfo;
-  register JSAMPROW sptr;
+  register _JSAMPROW sptr;
   register JDIMENSION col;
   JDIMENSION row;
   cd_progress_ptr progress = (cd_progress_ptr)cinfo->progress;
@@ -588,11 +608,11 @@ load_interlaced_image(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
       progress->pub.pass_limit = (long)cinfo->image_height;
       (*progress->pub.progress_monitor) ((j_common_ptr)cinfo);
     }
-    sptr = *(*cinfo->mem->access_virt_sarray)
+    sptr = *(_JSAMPARRAY)(*cinfo->mem->access_virt_sarray)
       ((j_common_ptr)cinfo, source->interlaced_image, row, (JDIMENSION)1,
        TRUE);
     for (col = cinfo->image_width; col > 0; col--) {
-      *sptr++ = (JSAMPLE)LZWReadByte(source);
+      *sptr++ = (_JSAMPLE)LZWReadByte(source);
     }
   }
   if (progress != NULL)
@@ -621,9 +641,9 @@ get_interlaced_row(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
 {
   gif_source_ptr source = (gif_source_ptr)sinfo;
   register int c;
-  register JSAMPROW sptr, ptr;
+  register _JSAMPROW sptr, ptr;
   register JDIMENSION col;
-  register JSAMPARRAY colormap = source->colormap;
+  register _JSAMPARRAY colormap = source->colormap;
   JDIMENSION irow;
 
   /* Figure out which row of interlaced image is needed, and access it. */
@@ -641,16 +661,23 @@ get_interlaced_row(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
   default:                      /* fourth-pass row */
     irow = (source->cur_row_number >> 1) + source->pass4_offset;
   }
-  sptr = *(*cinfo->mem->access_virt_sarray)
+  sptr = *(_JSAMPARRAY)(*cinfo->mem->access_virt_sarray)
     ((j_common_ptr)cinfo, source->interlaced_image, irow, (JDIMENSION)1,
      FALSE);
   /* Scan the row, expand colormap, and output */
-  ptr = source->pub.buffer[0];
-  for (col = cinfo->image_width; col > 0; col--) {
-    c = *sptr++;
-    *ptr++ = colormap[CM_RED][c];
-    *ptr++ = colormap[CM_GREEN][c];
-    *ptr++ = colormap[CM_BLUE][c];
+  ptr = source->pub._buffer[0];
+  if (cinfo->in_color_space == JCS_GRAYSCALE) {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = *sptr++;
+      *ptr++ = colormap[CM_RED][c];
+    }
+  } else {
+    for (col = cinfo->image_width; col > 0; col--) {
+      c = *sptr++;
+      *ptr++ = colormap[CM_RED][c];
+      *ptr++ = colormap[CM_GREEN][c];
+      *ptr++ = colormap[CM_BLUE][c];
+    }
   }
   source->cur_row_number++;     /* for next time */
   return 1;
@@ -673,9 +700,12 @@ finish_input_gif(j_compress_ptr cinfo, cjpeg_source_ptr sinfo)
  */
 
 GLOBAL(cjpeg_source_ptr)
-jinit_read_gif(j_compress_ptr cinfo)
+_jinit_read_gif(j_compress_ptr cinfo)
 {
   gif_source_ptr source;
+
+  if (cinfo->data_precision != BITS_IN_JSAMPLE)
+    ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
 
   /* Create module interface object */
   source = (gif_source_ptr)
@@ -692,4 +722,5 @@ jinit_read_gif(j_compress_ptr cinfo)
   return (cjpeg_source_ptr)source;
 }
 
-#endif /* GIF_SUPPORTED */
+#endif /* defined(GIF_SUPPORTED) &&
+          (BITS_IN_JSAMPLE != 16 || defined(C_LOSSLESS_SUPPORTED)) */
