@@ -171,8 +171,11 @@ typedef unsigned int JDIMENSION;
 /* a function referenced thru EXTERNs: */
 #define GLOBAL(type)            type
 /* a reference to a GLOBAL function: */
+#if defined(_DLL) && !defined(_LIB)
+#define EXTERN(type)            extern __declspec(dllexport) type
+#else
 #define EXTERN(type)            extern type
-
+#endif
 
 /* Originally, this macro was used as a way of defining function prototypes
  * for both modern compilers as well as older compilers that did not support
