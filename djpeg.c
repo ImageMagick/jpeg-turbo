@@ -5,7 +5,7 @@
  * Copyright (C) 1991-1997, Thomas G. Lane.
  * Modified 2013-2019 by Guido Vollbeding.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2010-2011, 2013-2017, 2019-2020, 2022, D. R. Commander.
+ * Copyright (C) 2010-2011, 2013-2017, 2019-2020, 2022-2023, D. R. Commander.
  * Copyright (C) 2015, Google, Inc.
  * For conditions of distribution and use, see the accompanying README.ijg
  * file.
@@ -330,7 +330,10 @@ parse_switches(j_decompress_ptr cinfo, int argc, char **argv,
           fprintf(stderr, "%s: can't open %s\n", progname, argv[argn]);
           exit(EXIT_FAILURE);
         }
-        read_color_map(cinfo, mapfile);
+        if (cinfo->data_precision == 12)
+          read_color_map_12(cinfo, mapfile);
+        else
+          read_color_map(cinfo, mapfile);
         fclose(mapfile);
         cinfo->quantize_colors = TRUE;
 #else
@@ -662,14 +665,9 @@ main(int argc, char **argv)
 #endif
 #ifdef GIF_SUPPORTED
   case FMT_GIF:
-    if (cinfo.data_precision == 16) {
-#ifdef D_LOSSLESS_SUPPORTED
-      dest_mgr = j16init_write_gif(&cinfo, TRUE);
-#else
+    if (cinfo.data_precision == 16)
       ERREXIT1(&cinfo, JERR_BAD_PRECISION, cinfo.data_precision);
-      break;
-#endif
-    } else if (cinfo.data_precision == 12)
+    else if (cinfo.data_precision == 12)
       dest_mgr = j12init_write_gif(&cinfo, TRUE);
     else
       dest_mgr = jinit_write_gif(&cinfo, TRUE);
@@ -680,14 +678,13 @@ main(int argc, char **argv)
 #endif
 #ifdef PPM_SUPPORTED
   case FMT_PPM:
-    if (cinfo.data_precision == 16) {
+    if (cinfo.data_precision == 16)
 #ifdef D_LOSSLESS_SUPPORTED
       dest_mgr = j16init_write_ppm(&cinfo);
 #else
       ERREXIT1(&cinfo, JERR_BAD_PRECISION, cinfo.data_precision);
-      break;
 #endif
-    } else if (cinfo.data_precision == 12)
+    else if (cinfo.data_precision == 12)
       dest_mgr = j12init_write_ppm(&cinfo);
     else
       dest_mgr = jinit_write_ppm(&cinfo);

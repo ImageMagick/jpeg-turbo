@@ -52,11 +52,11 @@ final class TJBench {
   };
 
   static final String[] SUBNAME_LONG = {
-    "4:4:4", "4:2:2", "4:2:0", "GRAY", "4:4:0", "4:1:1"
+    "4:4:4", "4:2:2", "4:2:0", "GRAY", "4:4:0", "4:1:1", "4:4:1"
   };
 
   static final String[] SUBNAME = {
-    "444", "422", "420", "GRAY", "440", "411"
+    "444", "422", "420", "GRAY", "440", "411", "441"
   };
 
   static final String[] CSNAME = {
@@ -530,7 +530,7 @@ final class TJBench {
     // Original image
     int w = 0, h = 0, ntilesw = 1, ntilesh = 1, subsamp = -1, cs = -1;
     // Transformed image
-    int tw, th, ttilew, ttileh, tntilesw, tntilesh, tsubsamp;
+    int minTile = 16, tw, th, ttilew, ttileh, tntilesw, tntilesh, tsubsamp;
 
     FileInputStream fis = new FileInputStream(fileName);
     if (fis.getChannel().size() > (long)Integer.MAX_VALUE)
@@ -593,7 +593,12 @@ final class TJBench {
                         precision, formatName(subsamp, cs), PIXFORMATSTR[pf],
                         bottomUp ? "Bottom-up" : "Top-down");
 
-    for (int tilew = doTile ? 16 : w, tileh = doTile ? 16 : h; ;
+    if (doTile) {
+      if (subsamp == TJ.SAMP_UNKNOWN)
+        throw new Exception("Could not determine subsampling level of JPEG image");
+      minTile = Math.max(TJ.getMCUWidth(subsamp), TJ.getMCUHeight(subsamp));
+    }
+    for (int tilew = doTile ? minTile : w, tileh = doTile ? minTile : h; ;
          tilew *= 2, tileh *= 2) {
       if (tilew > w)
         tilew = w;
@@ -655,6 +660,10 @@ final class TJBench {
             tsubsamp = TJ.SAMP_440;
           else if (tsubsamp == TJ.SAMP_440)
             tsubsamp = TJ.SAMP_422;
+          else if (tsubsamp == TJ.SAMP_411)
+            tsubsamp = TJ.SAMP_441;
+          else if (tsubsamp == TJ.SAMP_441)
+            tsubsamp = TJ.SAMP_411;
         }
 
         TJTransform[] t = new TJTransform[tntilesw * tntilesh];
@@ -826,7 +835,7 @@ final class TJBench {
     }
     System.out.println(")");
     System.out.println("-subsamp S = When compressing, use the specified level of chrominance");
-    System.out.println("     subsampling (S = 444, 422, 440, 420, 411, or GRAY) [default = test");
+    System.out.println("     subsampling (S = 444, 422, 440, 420, 411, 441, or GRAY) [default = test");
     System.out.println("     Grayscale, 4:2:0, 4:2:2, and 4:4:4 in sequence]");
     System.out.println("-hflip, -vflip, -transpose, -transverse, -rot90, -rot180, -rot270 =");
     System.out.println("     Perform the specified lossless transform operation on the input image");
@@ -1055,6 +1064,8 @@ final class TJBench {
               subsamp = TJ.SAMP_420;
             else if (argv[i].equals("411"))
               subsamp = TJ.SAMP_411;
+            else if (argv[i].equals("441"))
+              subsamp = TJ.SAMP_441;
             else
               usage();
           } else if (argv[i].equalsIgnoreCase("-componly"))

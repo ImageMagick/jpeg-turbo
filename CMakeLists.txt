@@ -10,7 +10,7 @@ if(CMAKE_EXECUTABLE_SUFFIX)
 endif()
 
 project(libjpeg-turbo C)
-set(VERSION 2.1.91)
+set(VERSION 3.0.0)
 set(COPYRIGHT_YEAR "1991-2023")
 string(REPLACE "." ";" VERSION_TRIPLET ${VERSION})
 list(GET VERSION_TRIPLET 0 VERSION_MAJOR)
@@ -30,6 +30,34 @@ endfunction()
 pad_number(VERSION_MINOR 3)
 pad_number(VERSION_REVISION 3)
 set(LIBJPEG_TURBO_VERSION_NUMBER ${VERSION_MAJOR}${VERSION_MINOR}${VERSION_REVISION})
+
+# The libjpeg-turbo build system has never supported and will never support
+# being integrated into another build system using add_subdirectory(), because
+# doing so would require that we (minimally):
+#
+# 1. avoid using certain CMake variables, such as CMAKE_SOURCE_DIR,
+#    CMAKE_BINARY_DIR, and CMAKE_PROJECT_NAME;
+# 2. avoid using implicit include directories and relative paths;
+# 3. optionally provide a way to skip the installation of libjpeg-turbo
+#    components when the 'install' target is built;
+# 4. optionally provide a way to postfix target names, to avoid namespace
+#    conflicts;
+# 5. restructure the top-level CMakeLists.txt so that it properly sets the
+#    PROJECT_VERSION variable; and
+# 6. design automated regression tests to ensure that new commits don't break
+#    any of the above.
+#
+# Even if we did all of that, issues would still arise, because it is
+# impossible for an upstream build system to anticipate the widely varying
+# needs of every downstream build system.  That's why the CMake
+# ExternalProject_Add() function exists.  Downstream projects that wish to
+# integrate libjpeg-turbo as a subdirectory should either use
+# ExternalProject_Add() or make downstream modifications to the libjpeg-turbo
+# build system to suit their specific needs.  Please do not file bug reports,
+# feature requests, or pull requests regarding this.
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  message(FATAL_ERROR "The libjpeg-turbo build system cannot be integrated into another build system using add_subdirectory().  Use ExternalProject_Add() instead.")
+endif()
 
 # CMake 3.14 and later sets CMAKE_MACOSX_BUNDLE to TRUE by default when
 # CMAKE_SYSTEM_NAME is iOS, tvOS, or watchOS, which breaks the libjpeg-turbo
@@ -70,7 +98,7 @@ string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} CMAKE_SYSTEM_PROCESSOR_LC)
 set(COUNT 1)
 foreach(ARCH ${CMAKE_OSX_ARCHITECTURES})
   if(COUNT GREATER 1)
-    message(FATAL_ERROR "The libjpeg-turbo build system does not support multiple values in CMAKE_OSX_ARCHITECTURES.")
+    message(FATAL_ERROR "libjpeg-turbo contains assembly code, so it cannot be built with multiple values in CMAKE_OSX_ARCHITECTURES.")
   endif()
   math(EXPR COUNT "${COUNT}+1")
 endforeach()
@@ -534,14 +562,17 @@ if(CMAKE_EXECUTABLE_SUFFIX_TMP)
 endif()
 message(STATUS "CMAKE_EXECUTABLE_SUFFIX = ${CMAKE_EXECUTABLE_SUFFIX}")
 
-set(JPEG_SOURCES jcapimin.c jcapistd.c jccoefct.c jccolor.c jcdctmgr.c
-  jcdiffct.c jchuff.c jcicc.c jcinit.c jclhuff.c jclossls.c jcmainct.c
-  jcmarker.c jcmaster.c jcomapi.c jcparam.c jcphuff.c jcprepct.c jcsample.c
-  jctrans.c jdapimin.c jdapistd.c jdatadst.c jdatasrc.c jdcoefct.c jdcolor.c
-  jddctmgr.c jddiffct.c jdhuff.c jdicc.c jdinput.c jdlhuff.c jdlossls.c
-  jdmainct.c jdmarker.c jdmaster.c jdmerge.c jdphuff.c jdpostct.c jdsample.c
-  jdtrans.c jerror.c jfdctflt.c jfdctfst.c jfdctint.c jidctflt.c jidctfst.c
-  jidctint.c jidctred.c jquant1.c jquant2.c jutils.c jmemmgr.c jmemnobs.c)
+set(JPEG16_SOURCES jcapistd.c jccolor.c jcdiffct.c jclossls.c jcmainct.c
+  jcprepct.c jcsample.c jdapistd.c jdcolor.c jddiffct.c jdlossls.c jdmainct.c
+  jdpostct.c jdsample.c jutils.c)
+set(JPEG12_SOURCES ${JPEG16_SOURCES} jccoefct.c jcdctmgr.c jdcoefct.c
+  jddctmgr.c jdmerge.c jfdctfst.c jfdctint.c jidctflt.c jidctfst.c jidctint.c
+  jidctred.c jquant1.c jquant2.c)
+set(JPEG_SOURCES ${JPEG12_SOURCES} jcapimin.c jchuff.c jcicc.c jcinit.c
+  jclhuff.c jcmarker.c jcmaster.c jcomapi.c jcparam.c jcphuff.c jctrans.c
+  jdapimin.c jdatadst.c jdatasrc.c jdhuff.c jdicc.c jdinput.c jdlhuff.c
+  jdmarker.c jdmaster.c jdphuff.c jdtrans.c jerror.c jfdctflt.c jmemmgr.c
+  jmemnobs.c)
 
 if(WITH_ARITH_ENC OR WITH_ARITH_DEC)
   set(JPEG_SOURCES ${JPEG_SOURCES} jaricom.c)
@@ -554,19 +585,6 @@ endif()
 if(WITH_ARITH_DEC)
   set(JPEG_SOURCES ${JPEG_SOURCES} jdarith.c)
 endif()
-
-# Compile a separate version of these source files with 12-bit and 16-bit data
-# precision.
-add_library(jpeg12 OBJECT jcapistd.c jccoefct.c jccolor.c jcdctmgr.c jcdiffct.c
-  jclossls.c jcmainct.c jcprepct.c jcsample.c jdapistd.c jdcoefct.c jdcolor.c
-  jddctmgr.c jddiffct.c jdlossls.c jdmainct.c jdmerge.c jdpostct.c jdsample.c
-  jfdctfst.c jfdctint.c jidctflt.c jidctfst.c jidctint.c jidctred.c jquant1.c
-  jquant2.c jutils.c)
-set_property(TARGET jpeg12 PROPERTY COMPILE_FLAGS "-DBITS_IN_JSAMPLE=12")
-add_library(jpeg16 OBJECT jcapistd.c jccolor.c jcdiffct.c jclossls.c jcmainct.c
-  jcprepct.c jcsample.c jdapistd.c jdcolor.c jddiffct.c jdlossls.c jdmainct.c
-  jdpostct.c jdsample.c jquant1.c jquant2.c jutils.c)
-set_property(TARGET jpeg16 PROPERTY COMPILE_FLAGS "-DBITS_IN_JSAMPLE=16")
 
 if(WITH_SIMD)
   add_subdirectory(simd)
@@ -595,24 +613,35 @@ if(WITH_JAVA)
 endif()
 
 if(ENABLE_SHARED)
+  # Compile a separate version of these source files with 12-bit and 16-bit
+  # data precision.
+  add_library(jpeg12 OBJECT ${JPEG12_SOURCES})
+  set_property(TARGET jpeg12 PROPERTY COMPILE_FLAGS "-DBITS_IN_JSAMPLE=12")
+  set_target_properties(jpeg12 PROPERTIES POSITION_INDEPENDENT_CODE 1)
+  add_library(jpeg16 OBJECT ${JPEG16_SOURCES})
+  set_property(TARGET jpeg16 PROPERTY COMPILE_FLAGS "-DBITS_IN_JSAMPLE=16")
+  set_target_properties(jpeg16 PROPERTIES POSITION_INDEPENDENT_CODE 1)
   add_subdirectory(sharedlib)
 endif()
 
 if(ENABLE_STATIC)
+  # Compile a separate version of these source files with 12-bit and 16-bit
+  # data precision.
+  add_library(jpeg12-static OBJECT ${JPEG12_SOURCES})
+  set_property(TARGET jpeg12-static PROPERTY COMPILE_FLAGS
+    "-DBITS_IN_JSAMPLE=12")
+  add_library(jpeg16-static OBJECT ${JPEG16_SOURCES})
+  set_property(TARGET jpeg16-static PROPERTY COMPILE_FLAGS
+    "-DBITS_IN_JSAMPLE=16")
   add_library(jpeg-static STATIC ${JPEG_SOURCES} ${SIMD_TARGET_OBJECTS}
-    ${SIMD_OBJS} $<TARGET_OBJECTS:jpeg12> $<TARGET_OBJECTS:jpeg16>)
+    ${SIMD_OBJS} $<TARGET_OBJECTS:jpeg12-static>
+    $<TARGET_OBJECTS:jpeg16-static>)
   if(NOT MSVC)
     set_target_properties(jpeg-static PROPERTIES OUTPUT_NAME jpeg)
   endif()
 endif()
 
 if(WITH_TURBOJPEG)
-  add_library(turbojpeg12 OBJECT rdppm.c wrppm.c)
-  set_property(TARGET turbojpeg12 PROPERTY COMPILE_FLAGS
-    "-DBITS_IN_JSAMPLE=12 -DPPM_SUPPORTED")
-  add_library(turbojpeg16 OBJECT rdppm.c wrppm.c)
-  set_property(TARGET turbojpeg16 PROPERTY COMPILE_FLAGS
-    "-DBITS_IN_JSAMPLE=16 -DPPM_SUPPORTED")
   if(ENABLE_SHARED)
     set(TURBOJPEG_SOURCES ${JPEG_SOURCES} ${SIMD_TARGET_OBJECTS} ${SIMD_OBJS}
       turbojpeg.c transupp.c jdatadst-tj.c jdatasrc-tj.c rdbmp.c rdppm.c
@@ -629,6 +658,14 @@ if(WITH_TURBOJPEG)
       set(TURBOJPEG_SOURCES ${TURBOJPEG_SOURCES}
         ${CMAKE_BINARY_DIR}/win/turbojpeg.rc)
     endif()
+    add_library(turbojpeg12 OBJECT rdppm.c wrppm.c)
+    set_property(TARGET turbojpeg12 PROPERTY COMPILE_FLAGS
+      "-DBITS_IN_JSAMPLE=12 -DPPM_SUPPORTED")
+    set_target_properties(turbojpeg12 PROPERTIES POSITION_INDEPENDENT_CODE 1)
+    add_library(turbojpeg16 OBJECT rdppm.c wrppm.c)
+    set_property(TARGET turbojpeg16 PROPERTY COMPILE_FLAGS
+      "-DBITS_IN_JSAMPLE=16 -DPPM_SUPPORTED")
+    set_target_properties(turbojpeg16 PROPERTIES POSITION_INDEPENDENT_CODE 1)
     add_library(turbojpeg SHARED ${TURBOJPEG_SOURCES}
       $<TARGET_OBJECTS:turbojpeg12> $<TARGET_OBJECTS:turbojpeg16>)
     set_property(TARGET turbojpeg PROPERTY COMPILE_FLAGS
@@ -667,11 +704,17 @@ if(WITH_TURBOJPEG)
   endif()
 
   if(ENABLE_STATIC)
+    add_library(turbojpeg12-static OBJECT rdppm.c wrppm.c)
+    set_property(TARGET turbojpeg12-static PROPERTY COMPILE_FLAGS
+      "-DBITS_IN_JSAMPLE=12 -DPPM_SUPPORTED")
+    add_library(turbojpeg16-static OBJECT rdppm.c wrppm.c)
+    set_property(TARGET turbojpeg16-static PROPERTY COMPILE_FLAGS
+      "-DBITS_IN_JSAMPLE=16 -DPPM_SUPPORTED")
     add_library(turbojpeg-static STATIC ${JPEG_SOURCES} ${SIMD_TARGET_OBJECTS}
       ${SIMD_OBJS} turbojpeg.c transupp.c jdatadst-tj.c jdatasrc-tj.c rdbmp.c
-      rdppm.c wrbmp.c wrppm.c $<TARGET_OBJECTS:jpeg12>
-      $<TARGET_OBJECTS:jpeg16> $<TARGET_OBJECTS:turbojpeg12>
-      $<TARGET_OBJECTS:turbojpeg16>)
+      rdppm.c wrbmp.c wrppm.c $<TARGET_OBJECTS:jpeg12-static>
+      $<TARGET_OBJECTS:jpeg16-static> $<TARGET_OBJECTS:turbojpeg12-static>
+      $<TARGET_OBJECTS:turbojpeg16-static>)
     set_property(TARGET turbojpeg-static PROPERTY COMPILE_FLAGS
       "-DBMP_SUPPORTED -DPPM_SUPPORTED")
     if(NOT MSVC)
@@ -717,9 +760,9 @@ if(ENABLE_STATIC)
   add_library(djpeg12-static OBJECT rdcolmap.c wrgif.c wrppm.c)
   set_property(TARGET djpeg12-static PROPERTY COMPILE_FLAGS
     "-DBITS_IN_JSAMPLE=12 -DGIF_SUPPORTED -DPPM_SUPPORTED")
-  add_library(djpeg16-static OBJECT rdcolmap.c wrgif.c wrppm.c)
+  add_library(djpeg16-static OBJECT wrppm.c)
   set_property(TARGET djpeg16-static PROPERTY COMPILE_FLAGS
-    "-DBITS_IN_JSAMPLE=16 -DGIF_SUPPORTED -DPPM_SUPPORTED")
+    "-DBITS_IN_JSAMPLE=16 -DPPM_SUPPORTED")
   add_executable(djpeg-static djpeg.c cdjpeg.c rdcolmap.c rdswitch.c wrbmp.c
     wrgif.c wrppm.c wrtarga.c $<TARGET_OBJECTS:djpeg12-static>
     $<TARGET_OBJECTS:djpeg16-static>)

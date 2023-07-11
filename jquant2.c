@@ -4,7 +4,7 @@
  * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1996, Thomas G. Lane.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2009, 2014-2015, 2020, 2022, D. R. Commander.
+ * Copyright (C) 2009, 2014-2015, 2020, 2022-2023, D. R. Commander.
  * For conditions of distribution and use, see the accompanying README.ijg
  * file.
  *
@@ -25,8 +25,7 @@
 #include "jpeglib.h"
 #include "jsamplecomp.h"
 
-#if defined(QUANT_2PASS_SUPPORTED) && \
-    (BITS_IN_JSAMPLE != 16 || defined(D_LOSSLESS_SUPPORTED))
+#if defined(QUANT_2PASS_SUPPORTED) && BITS_IN_JSAMPLE != 16
 
 
 /*
@@ -1238,7 +1237,8 @@ _jinit_2pass_quantizer(j_decompress_ptr cinfo)
   cquantize->error_limiter = NULL;
 
   /* Make sure jdmaster didn't give me a case I can't handle */
-  if (cinfo->out_color_components != 3)
+  if (cinfo->out_color_components != 3 ||
+      cinfo->out_color_space == JCS_RGB565 || cinfo->master->lossless)
     ERREXIT(cinfo, JERR_NOTIMPL);
 
   /* Allocate the histogram/inverse colormap storage */
@@ -1290,5 +1290,4 @@ _jinit_2pass_quantizer(j_decompress_ptr cinfo)
   }
 }
 
-#endif /* defined(QUANT_2PASS_SUPPORTED) &&
-          (BITS_IN_JSAMPLE != 16 || defined(D_LOSSLESS_SUPPORTED)) */
+#endif /* defined(QUANT_2PASS_SUPPORTED) && BITS_IN_JSAMPLE != 16 */

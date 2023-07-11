@@ -98,13 +98,13 @@ const char *pixFormatStr[TJ_NUMPF] = {
   "RGB", "BGR", "RGBX", "BGRX", "XBGR", "XRGB", "GRAY", "", "", "", "", "CMYK"
 };
 const char *subNameLong[TJ_NUMSAMP] = {
-  "4:4:4", "4:2:2", "4:2:0", "GRAY", "4:4:0", "4:1:1"
+  "4:4:4", "4:2:2", "4:2:0", "GRAY", "4:4:0", "4:1:1", "4:4:1"
 };
 const char *csName[TJ_NUMCS] = {
   "RGB", "YCbCr", "GRAY", "CMYK", "YCCK"
 };
 const char *subName[TJ_NUMSAMP] = {
-  "444", "422", "420", "GRAY", "440", "411"
+  "444", "422", "420", "GRAY", "440", "411", "441"
 };
 tjscalingfactor *scalingFactors = NULL, sf = { 1, 1 };
 tjregion cr = { 0, 0, 0, 0 };
@@ -617,8 +617,8 @@ static int decompTest(char *fileName)
   int ps = tjPixelSize[pf], tile, row, col, i, iter, retval = 0, decompsrc = 0;
   char *temp = NULL, tempStr[80], tempStr2[80];
   /* Original image */
-  int w = 0, h = 0, tilew, tileh, ntilesw = 1, ntilesh = 1, subsamp = -1,
-    cs = -1;
+  int w = 0, h = 0, minTile = 16, tilew, tileh, ntilesw = 1, ntilesh = 1,
+    subsamp = -1, cs = -1;
   /* Transformed image */
   int tw, th, ttilew, ttileh, tntilesw, tntilesh, tsubsamp;
 
@@ -697,7 +697,13 @@ static int decompTest(char *fileName)
            formatName(subsamp, cs, tempStr), pixFormatStr[pf],
            bottomUp ? "Bottom-up" : "Top-down");
 
-  for (tilew = doTile ? 16 : w, tileh = doTile ? 16 : h; ;
+  if (doTile) {
+    if (subsamp == TJSAMP_UNKNOWN)
+      THROW("transforming",
+            "Could not determine subsampling level of JPEG image");
+    minTile = max(tjMCUWidth[subsamp], tjMCUHeight[subsamp]);
+  }
+  for (tilew = doTile ? minTile : w, tileh = doTile ? minTile : h; ;
        tilew *= 2, tileh *= 2) {
     if (tilew > w) tilew = w;
     if (tileh > h) tileh = h;
@@ -716,8 +722,13 @@ static int decompTest(char *fileName)
     if (noRealloc &&
         (doTile || xformOp != TJXOP_NONE || xformOpt != 0 || customFilter)) {
       for (i = 0; i < ntilesw * ntilesh; i++) {
-        size_t jpegBufSize = tj3JPEGBufSize(tilew, tileh, subsamp);
+        size_t jpegBufSize;
 
+        if (xformOp == TJXOP_TRANSPOSE || xformOp == TJXOP_TRANSVERSE ||
+            xformOp == TJXOP_ROT90 || xformOp == TJXOP_ROT270)
+          jpegBufSize = tj3JPEGBufSize(tileh, tilew, subsamp);
+        else
+          jpegBufSize = tj3JPEGBufSize(tilew, tileh, subsamp);
         if (jpegBufSize == 0)
           THROW_TJG();
         if ((jpegBufs[i] = tj3Alloc(jpegBufSize)) == NULL)
@@ -768,6 +779,8 @@ static int decompTest(char *fileName)
           xformOp == TJXOP_ROT90 || xformOp == TJXOP_ROT270) {
         if (tsubsamp == TJSAMP_422) tsubsamp = TJSAMP_440;
         else if (tsubsamp == TJSAMP_440) tsubsamp = TJSAMP_422;
+        else if (tsubsamp == TJSAMP_411) tsubsamp = TJSAMP_441;
+        else if (tsubsamp == TJSAMP_441) tsubsamp = TJSAMP_411;
       }
 
       for (row = 0, tile = 0; row < tntilesh; row++) {
@@ -941,7 +954,7 @@ static void usage(char *progName)
   }
   printf(")\n");
   printf("-subsamp S = When compressing, use the specified level of chrominance\n");
-  printf("     subsampling (S = 444, 422, 440, 420, 411, or GRAY) [default = test\n");
+  printf("     subsampling (S = 444, 422, 440, 420, 411, 441, or GRAY) [default = test\n");
   printf("     Grayscale, 4:2:0, 4:2:2, and 4:4:4 in sequence]\n");
   printf("-hflip, -vflip, -transpose, -transverse, -rot90, -rot180, -rot270 =\n");
   printf("     Perform the specified lossless transform operation on the input image\n");
@@ -1122,6 +1135,7 @@ int main(int argc, char *argv[])
           case 440:  subsamp = TJSAMP_440;  break;
           case 420:  subsamp = TJSAMP_420;  break;
           case 411:  subsamp = TJSAMP_411;  break;
+          case 441:  subsamp = TJSAMP_441;  break;
           default:  usage(argv[0]);
           }
         }

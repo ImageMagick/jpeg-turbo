@@ -7,7 +7,7 @@
  * Lossless JPEG Modifications:
  * Copyright (C) 1999, Ken Murchison.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2009-2011, 2016, 2019, 2022, D. R. Commander.
+ * Copyright (C) 2009-2011, 2016, 2019, 2022-2023, D. R. Commander.
  * Copyright (C) 2013, Linaro Limited.
  * Copyright (C) 2015, Google, Inc.
  * For conditions of distribution and use, see the accompanying README.ijg
@@ -35,6 +35,9 @@ LOCAL(boolean)
 use_merged_upsample(j_decompress_ptr cinfo)
 {
 #ifdef UPSAMPLE_MERGING_SUPPORTED
+  /* Colorspace conversion is not supported with lossless JPEG images */
+  if (cinfo->master->lossless)
+    return FALSE;
   /* Merging is the equivalent of plain box-filter upsampling */
   if (cinfo->do_fancy_upsampling || cinfo->CCIR601_sampling)
     return FALSE;
@@ -551,7 +554,8 @@ master_selection(j_decompress_ptr cinfo)
     if (cinfo->raw_data_out)
       ERREXIT(cinfo, JERR_NOTIMPL);
     /* 2-pass quantizer only works in 3-component color space. */
-    if (cinfo->out_color_components != 3) {
+    if (cinfo->out_color_components != 3 ||
+        cinfo->out_color_space == JCS_RGB565) {
       cinfo->enable_1pass_quant = TRUE;
       cinfo->enable_external_quant = FALSE;
       cinfo->enable_2pass_quant = FALSE;
@@ -566,7 +570,12 @@ master_selection(j_decompress_ptr cinfo)
 
     if (cinfo->enable_1pass_quant) {
 #ifdef QUANT_1PASS_SUPPORTED
-      jinit_1pass_quantizer(cinfo);
+      if (cinfo->data_precision == 16)
+        ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+      else if (cinfo->data_precision == 12)
+        j12init_1pass_quantizer(cinfo);
+      else
+        jinit_1pass_quantizer(cinfo);
       master->quantizer_1pass = cinfo->cquantize;
 #else
       ERREXIT(cinfo, JERR_NOT_COMPILED);
@@ -576,7 +585,12 @@ master_selection(j_decompress_ptr cinfo)
     /* We use the 2-pass code to map to external colormaps. */
     if (cinfo->enable_2pass_quant || cinfo->enable_external_quant) {
 #ifdef QUANT_2PASS_SUPPORTED
-      jinit_2pass_quantizer(cinfo);
+      if (cinfo->data_precision == 16)
+        ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+      else if (cinfo->data_precision == 12)
+        j12init_2pass_quantizer(cinfo);
+      else
+        jinit_2pass_quantizer(cinfo);
       master->quantizer_2pass = cinfo->cquantize;
 #else
       ERREXIT(cinfo, JERR_NOT_COMPILED);
@@ -591,15 +605,41 @@ master_selection(j_decompress_ptr cinfo)
   if (!cinfo->raw_data_out) {
     if (master->using_merged_upsample) {
 #ifdef UPSAMPLE_MERGING_SUPPORTED
-      jinit_merged_upsampler(cinfo); /* does color conversion too */
+      if (cinfo->data_precision == 16)
+        ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+      else if (cinfo->data_precision == 12)
+        j12init_merged_upsampler(cinfo); /* does color conversion too */
+      else
+        jinit_merged_upsampler(cinfo); /* does color conversion too */
 #else
       ERREXIT(cinfo, JERR_NOT_COMPILED);
 #endif
     } else {
-      jinit_color_deconverter(cinfo);
-      jinit_upsampler(cinfo);
+      if (cinfo->data_precision == 16) {
+#ifdef D_LOSSLESS_SUPPORTED
+        j16init_color_deconverter(cinfo);
+        j16init_upsampler(cinfo);
+#else
+        ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+#endif
+      } else if (cinfo->data_precision == 12) {
+        j12init_color_deconverter(cinfo);
+        j12init_upsampler(cinfo);
+      } else {
+        jinit_color_deconverter(cinfo);
+        jinit_upsampler(cinfo);
+      }
     }
-    jinit_d_post_controller(cinfo, cinfo->enable_2pass_quant);
+    if (cinfo->data_precision == 16)
+#ifdef D_LOSSLESS_SUPPORTED
+      j16init_d_post_controller(cinfo, cinfo->enable_2pass_quant);
+#else
+      ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+#endif
+    else if (cinfo->data_precision == 12)
+      j12init_d_post_controller(cinfo, cinfo->enable_2pass_quant);
+    else
+      jinit_d_post_controller(cinfo, cinfo->enable_2pass_quant);
   }
 
   if (cinfo->master->lossless) {
@@ -607,7 +647,12 @@ master_selection(j_decompress_ptr cinfo)
     /* Prediction, sample undifferencing, point transform, and sample size
      * scaling
      */
-    jinit_lossless_decompressor(cinfo);
+    if (cinfo->data_precision == 16)
+      j16init_lossless_decompressor(cinfo);
+    else if (cinfo->data_precision == 12)
+      j12init_lossless_decompressor(cinfo);
+    else
+      jinit_lossless_decompressor(cinfo);
     /* Entropy decoding: either Huffman or arithmetic coding. */
     if (cinfo->arith_code) {
       ERREXIT(cinfo, JERR_ARITH_NOTIMPL);
@@ -618,7 +663,12 @@ master_selection(j_decompress_ptr cinfo)
     /* Initialize principal buffer controllers. */
     use_c_buffer = cinfo->inputctl->has_multiple_scans ||
                    cinfo->buffered_image;
-    jinit_d_diff_controller(cinfo, use_c_buffer);
+    if (cinfo->data_precision == 16)
+      j16init_d_diff_controller(cinfo, use_c_buffer);
+    else if (cinfo->data_precision == 12)
+      j12init_d_diff_controller(cinfo, use_c_buffer);
+    else
+      jinit_d_diff_controller(cinfo, use_c_buffer);
 #else
     ERREXIT(cinfo, JERR_NOT_COMPILED);
 #endif
@@ -626,7 +676,10 @@ master_selection(j_decompress_ptr cinfo)
     if (cinfo->data_precision == 16)
       ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
     /* Inverse DCT */
-    jinit_inverse_dct(cinfo);
+    if (cinfo->data_precision == 12)
+      j12init_inverse_dct(cinfo);
+    else
+      jinit_inverse_dct(cinfo);
     /* Entropy decoding: either Huffman or arithmetic coding. */
     if (cinfo->arith_code) {
 #ifdef D_ARITH_CODING_SUPPORTED
@@ -648,11 +701,25 @@ master_selection(j_decompress_ptr cinfo)
     /* Initialize principal buffer controllers. */
     use_c_buffer = cinfo->inputctl->has_multiple_scans ||
                    cinfo->buffered_image;
-    jinit_d_coef_controller(cinfo, use_c_buffer);
+    if (cinfo->data_precision == 12)
+      j12init_d_coef_controller(cinfo, use_c_buffer);
+    else
+      jinit_d_coef_controller(cinfo, use_c_buffer);
   }
 
   if (!cinfo->raw_data_out) {
-    jinit_d_main_controller(cinfo, FALSE /* never need full buffer here */);
+    if (cinfo->data_precision == 16)
+#ifdef D_LOSSLESS_SUPPORTED
+      j16init_d_main_controller(cinfo,
+                                FALSE /* never need full buffer here */);
+#else
+      ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+#endif
+    else if (cinfo->data_precision == 12)
+      j12init_d_main_controller(cinfo,
+                                FALSE /* never need full buffer here */);
+    else
+      jinit_d_main_controller(cinfo, FALSE /* never need full buffer here */);
   }
 
   /* We can now tell the memory manager to allocate virtual arrays. */
