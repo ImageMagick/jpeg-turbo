@@ -50,8 +50,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
   if ((handle = tj3Init(TJINIT_TRANSFORM)) == NULL)
     goto bailout;
 
-  if (tj3DecompressHeader(handle, data, size) < 0)
-    goto bailout;
+  /* We ignore the return value of tj3DecompressHeader(), because malformed
+     JPEG images that might expose issues in libjpeg-turbo might also have
+     header errors that cause tj3DecompressHeader() to fail. */
+  tj3DecompressHeader(handle, data, size);
   width = tj3Get(handle, TJPARAM_JPEGWIDTH);
   height = tj3Get(handle, TJPARAM_JPEGHEIGHT);
   jpegSubsamp = tj3Get(handle, TJPARAM_SUBSAMP);
@@ -103,14 +105,15 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
   transforms[0].r.w = (height + 1) / 2;
   transforms[0].r.h = (width + 1) / 2;
   transforms[0].op = TJXOP_TRANSPOSE;
-  transforms[0].options = TJXOPT_GRAY | TJXOPT_CROP | TJXOPT_COPYNONE;
+  transforms[0].options = TJXOPT_GRAY | TJXOPT_CROP | TJXOPT_COPYNONE |
+                          TJXOPT_OPTIMIZE;
   dstBufs[0] =
     (unsigned char *)malloc(tj3JPEGBufSize((height + 1) / 2, (width + 1) / 2,
-                                           TJSAMP_GRAY));
+                                           jpegSubsamp));
   if (!dstBufs[0])
     goto bailout;
 
-  maxBufSize = tj3JPEGBufSize((height + 1) / 2, (width + 1) / 2, TJSAMP_GRAY);
+  maxBufSize = tj3JPEGBufSize((height + 1) / 2, (width + 1) / 2, jpegSubsamp);
 
   if (tj3Transform(handle, data, size, 1, dstBufs, dstSizes,
                    transforms) == 0) {
@@ -146,9 +149,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
       goto bailout;
   }
 
-  transforms[0].options |= TJXOPT_OPTIMIZE;
   free(dstBufs[0]);
   dstBufs[0] = NULL;
+
+  transforms[0].op = TJXOP_NONE;
+  transforms[0].options = TJXOPT_PROGRESSIVE;
   dstSizes[0] = 0;
 
   tj3Set(handle, TJPARAM_NOREALLOC, 0);
