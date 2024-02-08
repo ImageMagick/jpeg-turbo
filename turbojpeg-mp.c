@@ -125,10 +125,10 @@ DLLEXPORT int GET_NAME(tj3Compress, BITS_IN_JSAMPLE)
   jpeg_finish_compress(cinfo);
 
 bailout:
-  if (cinfo->global_state > CSTATE_START) {
-    if (alloc) (*cinfo->dest->term_destination) (cinfo);
+  if (cinfo->global_state > CSTATE_START && alloc)
+    (*cinfo->dest->term_destination) (cinfo);
+  if (cinfo->global_state > CSTATE_START || retval == -1)
     jpeg_abort_compress(cinfo);
-  }
   free(row_pointer);
   if (this->jerr.warning) retval = -1;
   return retval;
@@ -167,16 +167,21 @@ DLLEXPORT int GET_NAME(tj3Decompress, BITS_IN_JSAMPLE)
   } else
     dinfo->progress = NULL;
 
+  dinfo->mem->max_memory_to_use = (long)this->maxMemory * 1048576L;
+
   if (setjmp(this->jerr.setjmp_buffer)) {
     /* If we get here, the JPEG code has signaled an error. */
     retval = -1;  goto bailout;
   }
 
-  if (dinfo->global_state <= DSTATE_START) {
+  if (dinfo->global_state <= DSTATE_INHEADER) {
     jpeg_mem_src_tj(dinfo, jpegBuf, jpegSize);
     jpeg_read_header(dinfo, TRUE);
   }
   setDecompParameters(this);
+  if (this->maxPixels &&
+      (unsigned long long)this->jpegWidth * this->jpegHeight > this->maxPixels)
+    THROW("Image is too large");
   this->dinfo.out_color_space = pf2cs[pixelFormat];
 #if BITS_IN_JSAMPLE != 16
   scaledWidth = TJSCALED(dinfo->image_width, this->scalingFactor);
@@ -342,11 +347,11 @@ DLLEXPORT _JSAMPLE *GET_NAME(tj3LoadImage, BITS_IN_JSAMPLE)
   } else
     THROW("Unsupported file type");
 
+  cinfo->mem->max_memory_to_use = (long)this->maxMemory * 1048576L;
+
   src->input_file = file;
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-  /* Refuse to load images larger than 1 Megapixel when fuzzing. */
+  /* Refuse to load images larger than the specified size. */
   src->max_pixels = this->maxPixels;
-#endif
   (*src->start_input) (cinfo, src);
   if (tempc == 'B') {
     if (cinfo->X_density && cinfo->Y_density) {
@@ -479,6 +484,8 @@ DLLEXPORT int GET_NAME(tj3SaveImage, BITS_IN_JSAMPLE)
       THROW("Could not initialize PPM writer");
     invert = this->bottomUp;
   }
+
+  dinfo->mem->max_memory_to_use = (long)this->maxMemory * 1048576L;
 
   dst->output_file = file;
   (*dst->start_output) (dinfo, dst);

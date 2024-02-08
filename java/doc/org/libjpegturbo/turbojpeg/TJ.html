@@ -14,7 +14,7 @@
 <!--[if IE]>
 <script type="text/javascript" src="../../../jquery/jszip-utils/dist/jszip-utils-ie.min.js"></script>
 <![endif]-->
-<script type="text/javascript" src="../../../jquery/jquery-3.6.0.min.js"></script>
+<script type="text/javascript" src="../../../jquery/jquery-3.6.1.min.js"></script>
 <script type="text/javascript" src="../../../jquery/jquery-ui.min.js"></script>
 </head>
 <body>
@@ -369,6 +369,20 @@ extends java.lang.Object</pre>
 <th class="colSecond" scope="row"><code><span class="memberNameLink"><a href="#PARAM_LOSSLESSPT">PARAM_LOSSLESSPT</a></span></code></th>
 <td class="colLast">
 <div class="block">Lossless JPEG point transform (Pt)</div>
+</td>
+</tr>
+<tr class="rowColor">
+<td class="colFirst"><code>static int</code></td>
+<th class="colSecond" scope="row"><code><span class="memberNameLink"><a href="#PARAM_MAXMEMORY">PARAM_MAXMEMORY</a></span></code></th>
+<td class="colLast">
+<div class="block">Memory limit for intermediate buffers</div>
+</td>
+</tr>
+<tr class="altColor">
+<td class="colFirst"><code>static int</code></td>
+<th class="colSecond" scope="row"><code><span class="memberNameLink"><a href="#PARAM_MAXPIXELS">PARAM_MAXPIXELS</a></span></code></th>
+<td class="colLast">
+<div class="block">Image size limit [decompression, lossless transformation]</div>
 </td>
 </tr>
 <tr class="rowColor">
@@ -1560,7 +1574,7 @@ extends java.lang.Object</pre>
  transformation]
 
  <p>Setting this parameter will cause the decompression and transform
- functions to return an error if the number of scans in a progressive JPEG
+ operations to throw an error if the number of scans in a progressive JPEG
  image exceeds the specified limit.  The primary purpose of this is to
  allow security-critical applications to guard against an exploit of the
  progressive JPEG format described in
@@ -1569,7 +1583,7 @@ extends java.lang.Object</pre>
  <p><b>Value</b>
  <ul>
  <li> maximum number of progressive JPEG scans that the decompression and
- transform functions will process <i>[default: <code>0</code> (no
+ transform operations will process <i>[default: <code>0</code> (no
  limit)]</i>
  </ul></div>
 <dl>
@@ -1627,9 +1641,11 @@ extends java.lang.Object</pre>
  </ul>
 
  <p>In most cases, compressing and decompressing lossless JPEG images is
- considerably slower than compressing and decompressing lossy JPEG images.
- Also note that the following features are not available with lossless JPEG
- images:
+ considerably slower than compressing and decompressing lossy JPEG images,
+ and lossless JPEG images are much larger than lossy JPEG images.  Thus,
+ lossless JPEG images are typically used only for applications that require
+ mathematically lossless compression.  Also note that the following
+ features are not available with lossless JPEG images:
  <ul>
  <li> Colorspace conversion (lossless JPEG images always use
  <a href="#CS_RGB"><code>CS_RGB</code></a>, <a href="#CS_GRAY"><code>CS_GRAY</code></a>, or <a href="#CS_CMYK"><code>CS_CMYK</code></a>, depending on the
@@ -1665,7 +1681,33 @@ extends java.lang.Object</pre>
  <ul>
  <li> <code>1</code>-<code>7</code> <i>[default for compression:
  <code>1</code>]</i>
- </ul></div>
+ </ul>
+
+ <p>Lossless JPEG compression shares no algorithms with lossy JPEG
+ compression.  Instead, it uses differential pulse-code modulation (DPCM),
+ an algorithm whereby each sample is encoded as the difference between the
+ sample's value and a "predictor", which is based on the values of
+ neighboring samples.  If Ra is the sample immediately to the left of the
+ current sample, Rb is the sample immediately above the current sample, and
+ Rc is the sample diagonally to the left and above the current sample, then
+ the relationship between the predictor selection value and the predictor
+ is as follows:
+
+ <table border=1>
+   <caption></caption>
+   <tr> <th>PSV</th> <th>Predictor</th> </tr>
+   <tr> <td>1</td>   <td>Ra</td> </tr>
+   <tr> <td>2</td>   <td>Rb</td> </tr>
+   <tr> <td>3</td>   <td>Rc</td> </tr>
+   <tr> <td>4</td>   <td>Ra + Rb – Rc</td> </tr>
+   <tr> <td>5</td>   <td>Ra + (Rb – Rc) / 2</td> </tr>
+   <tr> <td>6</td>   <td>Rb + (Ra – Rc) / 2</td> </tr>
+   <tr> <td>7</td>   <td>(Ra + Rb) / 2</td> </tr>
+ </table>
+
+ <p>Predictors 1-3 are 1-dimensional predictors, whereas Predictors 4-7 are
+ 2-dimensional predictors.  The best predictor for a particular image
+ depends on the image.</div>
 <dl>
 <dt><span class="seeLabel">See Also:</span></dt>
 <dd><a href="#PARAM_LOSSLESS"><code>PARAM_LOSSLESS</code></a>, 
@@ -1837,6 +1879,54 @@ extends java.lang.Object</pre>
 <dd><a href="#PARAM_XDENSITY"><code>PARAM_XDENSITY</code></a>, 
 <a href="#PARAM_YDENSITY"><code>PARAM_YDENSITY</code></a>, 
 <a href="../../../constant-values.html#org.libjpegturbo.turbojpeg.TJ.PARAM_DENSITYUNITS">Constant Field Values</a></dd>
+</dl>
+</li>
+</ul>
+<a id="PARAM_MAXMEMORY">
+<!--   -->
+</a>
+<ul class="blockList">
+<li class="blockList">
+<h4>PARAM_MAXMEMORY</h4>
+<pre>public static final&nbsp;int PARAM_MAXMEMORY</pre>
+<div class="block">Memory limit for intermediate buffers
+
+ <p><b>Value</b>
+ <ul>
+ <li> the maximum amount of memory (in megabytes) that will be allocated
+ for intermediate buffers, which are used with progressive JPEG compression
+ and decompression, optimized baseline entropy coding, lossless JPEG
+ compression, and lossless transformation <i>[default: <code>0</code> (no
+ limit)]</i>
+ </ul></div>
+<dl>
+<dt><span class="seeLabel">See Also:</span></dt>
+<dd><a href="../../../constant-values.html#org.libjpegturbo.turbojpeg.TJ.PARAM_MAXMEMORY">Constant Field Values</a></dd>
+</dl>
+</li>
+</ul>
+<a id="PARAM_MAXPIXELS">
+<!--   -->
+</a>
+<ul class="blockList">
+<li class="blockList">
+<h4>PARAM_MAXPIXELS</h4>
+<pre>public static final&nbsp;int PARAM_MAXPIXELS</pre>
+<div class="block">Image size limit [decompression, lossless transformation]
+
+ <p>Setting this parameter will cause the decompression and transform
+ operations to throw an error if the number of pixels in the JPEG source
+ image exceeds the specified limit.  This allows security-critical
+ applications to guard against excessive memory consumption.
+
+ <p><b>Value</b>
+ <ul>
+ <li> maximum number of pixels that the decompression and transform
+ operations will process <i>[default: <code>0</code> (no limit)]</i>
+ </ul></div>
+<dl>
+<dt><span class="seeLabel">See Also:</span></dt>
+<dd><a href="../../../constant-values.html#org.libjpegturbo.turbojpeg.TJ.PARAM_MAXPIXELS">Constant Field Values</a></dd>
 </dl>
 </li>
 </ul>
