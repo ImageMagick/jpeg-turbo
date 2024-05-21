@@ -131,7 +131,7 @@ transdecode_master_selection(j_decompress_ptr cinfo)
 
   /* Always get a full-image coefficient buffer. */
   if (cinfo->data_precision == 12)
-    j12init_d_coef_controller(cinfo, TRUE);
+    ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
   else
     jinit_d_coef_controller(cinfo, TRUE);
 
