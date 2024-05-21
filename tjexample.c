@@ -1,5 +1,5 @@
 /*
- * Copyright (C)2011-2012, 2014-2015, 2017, 2019, 2021-2023
+ * Copyright (C)2011-2012, 2014-2015, 2017, 2019, 2021-2024
  *           D. R. Commander.  All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,6 +40,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
+#if !defined(_MSC_VER) || _MSC_VER > 1600
+#include <stdint.h>
+#endif
 #include <turbojpeg.h>
 
 
@@ -61,16 +65,16 @@
 #define DEFAULT_QUALITY  95
 
 
-const char *subsampName[TJ_NUMSAMP] = {
+static const char *subsampName[TJ_NUMSAMP] = {
   "4:4:4", "4:2:2", "4:2:0", "Grayscale", "4:4:0", "4:1:1", "4:4:1"
 };
 
-const char *colorspaceName[TJ_NUMCS] = {
+static const char *colorspaceName[TJ_NUMCS] = {
   "RGB", "YCbCr", "GRAY", "CMYK", "YCCK"
 };
 
-tjscalingfactor *scalingFactors = NULL;
-int numScalingFactors = 0;
+static tjscalingfactor *scalingFactors = NULL;
+static int numScalingFactors = 0;
 
 
 /* DCT filter example.  This produces a negative of the image. */
@@ -335,9 +339,11 @@ int main(int argc, char **argv)
       outSubsamp = inSubsamp;
 
     pixelFormat = TJPF_BGRX;
+#if ULLONG_MAX > SIZE_MAX
     if ((unsigned long long)width * height * tjPixelSize[pixelFormat] >
         (unsigned long long)((size_t)-1))
       THROW("allocating uncompressed image buffer", "Image is too large");
+#endif
     if ((imgBuf =
          (unsigned char *)malloc(sizeof(unsigned char) * width * height *
                                  tjPixelSize[pixelFormat])) == NULL)
