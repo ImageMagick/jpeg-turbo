@@ -26,13 +26,13 @@ jcgryext-avx2.asm
 jcgryext-sse2.asm
 jcgryext-mmx.asm
 jcstest.c
-jdatadst-tj.c
-jdatasrc-tj.c
 jdcol565.c
 jdcolext.c
 jdcolext-avx2.asm
 jdcolext-sse2.asm
 jdcolext-mmx.asm
+jdatadst-tj.c
+jdatasrc-tj.c
 jdmrgext.c
 jdmrgext-avx2.asm
 jdmrgext-sse2.asm
