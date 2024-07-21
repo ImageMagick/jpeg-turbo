@@ -64,6 +64,10 @@ simd\i386
 simd\i386
 simd\x86_64
 
+[DEPENDENCIES]
+jpeg-turbo-12
+jpeg-turbo-16
+
 [CONFIG_DEFINE]
 /*
   Define to use the TurboJPEG library
