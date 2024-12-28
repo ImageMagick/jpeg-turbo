@@ -9,7 +9,7 @@ LICENSE.md
 simd\nasm
 
 [DIRECTORIES]
-.
+src
 simd\i386
 simd\x86_64
 
