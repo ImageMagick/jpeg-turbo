@@ -1,74 +1,100 @@
-[DLL]
+[DYNAMIC_LIBRARY]
 
 [LICENSE]
 LICENSE.md
+
+[DYNAMIC_DEFINES]
+JPEG_TURBO_DLL_BUILD
 
 [NASM]
 
 [INCLUDES_NASM]
 simd\nasm
 
-[DIRECTORIES]
-src
+[INCLUDES_NASM_X86]
 simd\i386
+
+[INCLUDES_NASM_X64]
 simd\x86_64
 
+[INCLUDE_ARTIFACTS]
+src\jconfig.h -> .
+src\jerror.h -> .
+src\jmorecfg.h -> .
+src\jpeglib.h -> .
+
+[MODULE_DEFINITION_FILE]
+win\jpeg62.def
+
 [EXCLUDES]
-cdjpeg.c
-cjpeg.c
-djpeg.c
-example.c
-jccolext.c
-jccolext-avx2.asm
-jccolext-sse2.asm
-jccolext-mmx.asm
-jcgryext-avx2.asm
-jcgryext-sse2.asm
-jcgryext-mmx.asm
-jcstest.c
-jdcol565.c
-jdcolext.c
-jdcolext-avx2.asm
-jdcolext-sse2.asm
-jdcolext-mmx.asm
-jdatadst-tj.c
-jdatasrc-tj.c
-jdmrgext.c
-jdmrgext-avx2.asm
-jdmrgext-sse2.asm
-jdmrgext-mmx.asm
-jdmrg565.c
-jpegtran.c
-jstdhuff.c
-rd*
-tj*
-strtest.c
-turbojpeg.c
-turbojpeg-jni.c
-turbojpeg-mp.c
-wrbmp.c
-wrgif.c
-wrjpgcom.c
-wrppm.c
-wrtarga.c
+doc\
+fuzz\
+java\
+release\
+sharedlib\
+simd\arm\
+simd\mips\
+simd\mips64\
+simd\powerpc\
+src\md5\
+src\cdjpeg.c
+src\cjpeg.c
+src\djpeg.c
+src\example.c
+src\jccolext.c
+src\jcstest.c
+src\jdatadst-tj.c
+src\jdatasrc-tj.c
+src\jdcol565.c
+src\jdcolext.c
+src\jdmrgext.c
+src\jdmrg565.c
+src\jpegtran.c
+src\jstdhuff.c
+src\rd
+src\strtest.c
+src\tj
+src\turbojpeg-mp.c
+src\turbojpeg.c
+src\wr
+test\
+win\
 
 [EXCLUDES_X86]
-jsimd_none.c
+simd\i386\jccolext-avx2.asm
+simd\i386\jccolext-sse2.asm
+simd\i386\jccolext-mmx.asm
+simd\i386\jcgryext-avx2.asm
+simd\i386\jcgryext-sse2.asm
+simd\i386\jcgryext-mmx.asm
+simd\i386\jdcolext-avx2.asm
+simd\i386\jdcolext-sse2.asm
+simd\i386\jdcolext-mmx.asm
+simd\i386\jdmrgext-avx2.asm
+simd\i386\jdmrgext-sse2.asm
+simd\i386\jdmrgext-mmx.asm
 simd\x86_64
 
 [EXCLUDES_X64]
-jsimd_none.c
 simd\i386
+simd\x86_64\jccolext-avx2.asm
+simd\x86_64\jccolext-sse2.asm
+simd\x86_64\jcgryext-avx2.asm
+simd\x86_64\jcgryext-sse2.asm
+simd\x86_64\jdcolext-avx2.asm
+simd\x86_64\jdcolext-sse2.asm
+simd\x86_64\jdmrgext-avx2.asm
+simd\x86_64\jdmrgext-sse2.asm
 
 [EXCLUDES_ARM64]
 simd\i386
 simd\x86_64
 
-[DEPENDENCIES]
+[REFERENCES]
 jpeg-turbo-12
 jpeg-turbo-16
 
-[CONFIG_DEFINE]
+[MAGICK_BASECONFIG_DEFINE]
 /*
   Define to use the TurboJPEG library
 */
