@@ -171,7 +171,7 @@ typedef unsigned int JDIMENSION;
 /* a function referenced thru EXTERNs: */
 #define GLOBAL(type)            type
 /* a reference to a GLOBAL function: */
-#if defined(_LIB)
+#if defined(_LIB) || !defined(_MSC_VER)
 #define EXTERN(type)            extern type
 #else
 #if defined(JPEG_TURBO_DLL_BUILD)
