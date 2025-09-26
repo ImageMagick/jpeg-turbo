@@ -20,7 +20,11 @@
 #define VERSION  "3.1.2"
 
 /* The size of `size_t', as computed by sizeof. */
+#if defined(_WIN64)
 #define SIZEOF_SIZE_T  8
+#else
+#define SIZEOF_SIZE_T  4
+#endif
 
 /* Define if your compiler has __builtin_ctzl() and sizeof(unsigned long) == sizeof(size_t). */
 /* #undef HAVE_BUILTIN_CTZL */
@@ -60,7 +64,9 @@
 
 #undef C_ARITH_CODING_SUPPORTED
 #undef D_ARITH_CODING_SUPPORTED
-#undef WITH_SIMD
+#if !_M_ARM64
+#define WITH_SIMD
+#endif
 
 #if BITS_IN_JSAMPLE == 8
 
