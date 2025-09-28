@@ -1,5 +1,23 @@
 [DYNAMIC_LIBRARY]
 
+[VERSION]
+3.1.2
+
+[RELEASE_DATE]
+2025-09-03
+
+[PRODUCT_NAME]
+libjpeg-turbo
+
+[COMPANY_NAME]
+D. R. Commander
+
+[URL]
+https://www.libjpeg-turbo.org/
+
+[COPYRIGHT]
+Copyright (C) 2019 D. R. Commander
+
 [LICENSE_FILE]
 LICENSE.md
 
