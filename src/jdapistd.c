@@ -4,7 +4,7 @@
  * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1994-1996, Thomas G. Lane.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2010, 2015-2020, 2022-2025, D. R. Commander.
+ * Copyright (C) 2010, 2015-2020, 2022-2026, D. R. Commander.
  * Copyright (C) 2015, Google, Inc.
  * For conditions of distribution and use, see the accompanying README.ijg
  * file.
@@ -30,6 +30,9 @@
 #include "jdmerge.h"
 #include "jdsample.h"
 #include "jmemsys.h"
+#ifdef WITH_PROFILE
+#include "tjutil.h"
+#endif
 
 #if BITS_IN_JSAMPLE == 8
 
@@ -197,7 +200,7 @@ _jpeg_crop_scanline(j_decompress_ptr cinfo, JDIMENSION *xoffset,
   if (cinfo->data_precision != BITS_IN_JSAMPLE)
     ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
 
-  if (cinfo->master->lossless)
+  if (cinfo->master->lossless || cinfo->raw_data_out)
     ERREXIT(cinfo, JERR_NOTIMPL);
 
   if ((cinfo->global_state != DSTATE_SCANNING &&
@@ -408,7 +411,10 @@ read_and_discard_scanlines(j_decompress_ptr cinfo, JDIMENSION num_lines)
   void (*color_quantize) (j_decompress_ptr cinfo, _JSAMPARRAY input_buf,
                           _JSAMPARRAY output_buf, int num_rows) = NULL;
 
-  if (!master->using_merged_upsample && cinfo->cconvert &&
+  if (cinfo->cconvert &&
+#ifdef UPSAMPLE_MERGING_SUPPORTED
+      !master->using_merged_upsample &&
+#endif
       cinfo->cconvert->_color_convert) {
     color_convert = cinfo->cconvert->_color_convert;
     cinfo->cconvert->_color_convert = noop_convert;
@@ -631,7 +637,15 @@ _jpeg_skip_scanlines(j_decompress_ptr cinfo, JDIMENSION num_lines)
          */
         if (!cinfo->entropy->insufficient_data)
           cinfo->master->last_good_iMCU_row = cinfo->input_iMCU_row;
+#ifdef WITH_PROFILE
+        cinfo->master->start = getTime();
+#endif
         (*cinfo->entropy->decode_mcu) (cinfo, NULL);
+#ifdef WITH_PROFILE
+        cinfo->master->entropy_elapsed += getTime() - cinfo->master->start;
+        cinfo->master->entropy_mcoeffs +=
+          (double)cinfo->blocks_in_MCU * DCTSIZE2 / 1000000.;
+#endif
       }
     }
     cinfo->input_iMCU_row++;

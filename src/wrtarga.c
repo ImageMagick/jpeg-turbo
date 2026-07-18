@@ -4,7 +4,7 @@
  * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1996, Thomas G. Lane.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2017, 2019, 2022, D. R. Commander.
+ * Copyright (C) 2017, 2019, 2022, 2026, D. R. Commander.
  * For conditions of distribution and use, see the accompanying README.ijg
  * file.
  *
@@ -194,6 +194,13 @@ start_output_tga(j_decompress_ptr cinfo, djpeg_dest_ptr dinfo)
 }
 
 
+METHODDEF(void)
+write_icc_profile_tga(j_decompress_ptr cinfo, djpeg_dest_ptr dinfo,
+                      const JOCTET *icc_data_ptr, unsigned int icc_data_len)
+{
+}
+
+
 /*
  * Finish up at the end of the file.
  */
@@ -238,17 +245,21 @@ jinit_write_targa(j_decompress_ptr cinfo)
     (*cinfo->mem->alloc_small) ((j_common_ptr)cinfo, JPOOL_IMAGE,
                                 sizeof(tga_dest_struct));
   dest->pub.start_output = start_output_tga;
+  dest->pub.write_icc_profile = write_icc_profile_tga;
   dest->pub.finish_output = finish_output_tga;
   dest->pub.calc_buffer_dimensions = calc_buffer_dimensions_tga;
 
   /* Calculate output image dimensions so we can allocate space */
+  if (cinfo->image_width > JPEG_MAX_DIMENSION ||
+      cinfo->image_height > JPEG_MAX_DIMENSION)
+    ERREXIT1(cinfo, JERR_IMAGE_TOO_BIG, JPEG_MAX_DIMENSION);
   jpeg_calc_output_dimensions(cinfo);
 
   /* Create I/O buffer. */
   dest->pub.calc_buffer_dimensions(cinfo, (djpeg_dest_ptr)dest);
   dest->iobuffer = (char *)
     (*cinfo->mem->alloc_small) ((j_common_ptr)cinfo, JPOOL_IMAGE,
-                                (size_t)(dest->buffer_width * sizeof(char)));
+                                (size_t)dest->buffer_width);
 
   /* Create decompressor output buffer. */
   dest->pub.buffer = (*cinfo->mem->alloc_sarray)

@@ -7,7 +7,7 @@
  * Lossless JPEG Modifications:
  * Copyright (C) 1999, Ken Murchison.
  * libjpeg-turbo Modifications:
- * Copyright (C) 2010, 2013-2014, 2017, 2019-2022, 2024-2025,
+ * Copyright (C) 2010, 2013-2014, 2017, 2019-2022, 2024-2026,
  *           D. R. Commander.
  * For conditions of distribution and use, see the accompanying README.ijg
  * file.
@@ -108,6 +108,21 @@ select_file_type(j_compress_ptr cinfo, FILE *infile)
   case 'G':
     return jinit_read_gif(cinfo);
 #endif
+#ifdef PNG_SUPPORTED
+  case 0x89:
+    if (cinfo->data_precision <= 8)
+      return jinit_read_png(cinfo);
+    else if (cinfo->data_precision <= 12)
+      return j12init_read_png(cinfo);
+    else {
+#ifdef C_LOSSLESS_SUPPORTED
+      return j16init_read_png(cinfo);
+#else
+      ERREXIT1(cinfo, JERR_BAD_PRECISION, cinfo->data_precision);
+      break;
+#endif
+    }
+#endif
 #ifdef PPM_SUPPORTED
   case 'P':
     if (cinfo->data_precision <= 8)
@@ -147,7 +162,9 @@ select_file_type(j_compress_ptr cinfo, FILE *infile)
 
 static const char *progname;    /* program name for error messages */
 static char *icc_filename;      /* for -icc switch */
+static boolean noicc;           /* for -noicc switch */
 static char *outfilename;       /* for -outfile switch */
+static boolean nooverwrite;     /* for -nooverwrite switch */
 static boolean memdst;          /* for -memdst switch */
 static boolean report;          /* for -report switch */
 static boolean strict;          /* for -strict switch */
@@ -157,33 +174,33 @@ static boolean strict;          /* for -strict switch */
 
 #include <setjmp.h>
 
-struct my_error_mgr {
+struct fuzzer_error_mgr {
   struct jpeg_error_mgr pub;
   jmp_buf setjmp_buffer;
 };
 
-void my_error_exit(j_common_ptr cinfo)
+static void fuzzer_error_exit(j_common_ptr cinfo)
 {
-  struct my_error_mgr *myerr = (struct my_error_mgr *)cinfo->err;
+  struct fuzzer_error_mgr *myerr = (struct fuzzer_error_mgr *)cinfo->err;
 
   longjmp(myerr->setjmp_buffer, 1);
 }
 
-static void my_emit_message_fuzzer(j_common_ptr cinfo, int msg_level)
+static void fuzzer_emit_message(j_common_ptr cinfo, int msg_level)
 {
   if (msg_level < 0)
     cinfo->err->num_warnings++;
 }
 
 #define HANDLE_ERROR() { \
+  if (src_mgr) \
+    (*src_mgr->finish_input) (&cinfo, src_mgr); \
   if (cinfo.global_state > CSTATE_START) { \
     if (memdst && outbuffer) \
       (*cinfo.dest->term_destination) (&cinfo); \
     jpeg_abort_compress(&cinfo); \
   } \
   jpeg_destroy_compress(&cinfo); \
-  if (input_file != stdin && input_file != NULL) \
-    fclose(input_file); \
   if (memdst) \
     free(outbuffer); \
   free(icc_profile); \
@@ -245,12 +262,14 @@ usage(void)
           (JDCT_DEFAULT == JDCT_FLOAT ? " (default)" : ""));
 #endif
   fprintf(stderr, "  -icc FILE      Embed ICC profile contained in FILE\n");
+  fprintf(stderr, "  -noicc         Do not transfer ICC profile from PNG input file\n");
   fprintf(stderr, "  -restart N     Set restart interval in rows, or in blocks with B\n");
 #ifdef INPUT_SMOOTHING_SUPPORTED
   fprintf(stderr, "  -smooth N      Smooth dithered input (N=1..100 is strength)\n");
 #endif
   fprintf(stderr, "  -maxmemory N   Maximum memory to use (in kbytes)\n");
   fprintf(stderr, "  -outfile name  Specify name for output file\n");
+  fprintf(stderr, "  -nooverwrite   Don't overwrite output file if it exists\n");
   fprintf(stderr, "  -memdst        Compress to memory instead of file (useful for benchmarking)\n");
   fprintf(stderr, "  -report        Report compression progress\n");
   fprintf(stderr, "  -strict        Treat all warnings as fatal\n");
@@ -286,20 +305,28 @@ parse_switches(j_compress_ptr cinfo, int argc, char **argv,
   int psv = 0, pt = 0;
 #endif
   boolean force_baseline;
+#ifdef C_PROGRESSIVE_SUPPORTED
   boolean simple_progressive;
+#endif
   char *qualityarg = NULL;      /* saves -quality parm if any */
   char *qtablefile = NULL;      /* saves -qtables filename if any */
   char *qslotsarg = NULL;       /* saves -qslots parm if any */
   char *samplearg = NULL;       /* saves -sample parm if any */
+#ifdef C_MULTISCAN_FILES_SUPPORTED
   char *scansarg = NULL;        /* saves -scans parm if any */
+#endif
 
   /* Set up default JPEG parameters. */
 
   force_baseline = FALSE;       /* by default, allow 16-bit quantizers */
+#ifdef C_PROGRESSIVE_SUPPORTED
   simple_progressive = FALSE;
+#endif
   is_targa = FALSE;
   icc_filename = NULL;
+  noicc = FALSE;
   outfilename = NULL;
+  nooverwrite = FALSE;
   memdst = FALSE;
   report = FALSE;
   strict = FALSE;
@@ -354,8 +381,7 @@ parse_switches(j_compress_ptr cinfo, int argc, char **argv,
       if (!printed_version) {
         fprintf(stderr, "%s version %s (build %s)\n",
                 PACKAGE_NAME, VERSION, BUILD);
-        fprintf(stderr, JCOPYRIGHT1);
-        fprintf(stderr, JCOPYRIGHT2 "\n");
+        fprintf(stderr, JCOPYRIGHT "\n");
         fprintf(stderr, "Emulating The Independent JPEG Group's software, version %s\n\n",
                 JVERSION);
         printed_version = TRUE;
@@ -381,6 +407,9 @@ parse_switches(j_compress_ptr cinfo, int argc, char **argv,
       if (++argn >= argc)       /* advance to next argument */
         usage();
       icc_filename = argv[argn];
+
+    } else if (keymatch(arg, "noicc", 3)) {
+      noicc = TRUE;
 
     } else if (keymatch(arg, "lossless", 1)) {
       /* Enable lossless mode. */
@@ -432,6 +461,9 @@ parse_switches(j_compress_ptr cinfo, int argc, char **argv,
       if (++argn >= argc)       /* advance to next argument */
         usage();
       outfilename = argv[argn]; /* save it away for later use */
+
+    } else if (keymatch(arg, "nooverwrite", 3)) {
+      nooverwrite = TRUE;
 
     } else if (keymatch(arg, "precision", 3)) {
       /* Set data precision. */
@@ -616,20 +648,27 @@ my_emit_message(j_common_ptr cinfo, int msg_level)
  * The main program.
  */
 
+#ifdef CJPEG_FUZZER
+static int
+cjpeg_fuzzer(int argc, char **argv, FILE *input_file)
+#else
 int
 main(int argc, char **argv)
+#endif
 {
   struct jpeg_compress_struct cinfo;
 #ifdef CJPEG_FUZZER
-  struct my_error_mgr myerr;
+  struct fuzzer_error_mgr myerr;
   struct jpeg_error_mgr &jerr = myerr.pub;
 #else
   struct jpeg_error_mgr jerr;
 #endif
   struct cdjpeg_progress_mgr progress;
   int file_index;
-  cjpeg_source_ptr src_mgr;
+  cjpeg_source_ptr src_mgr = NULL;
+#ifndef CJPEG_FUZZER
   FILE *input_file = NULL;
+#endif
   FILE *icc_file;
   JOCTET *icc_profile = NULL;
   long icc_len = 0;
@@ -696,6 +735,7 @@ main(int argc, char **argv)
   }
 #endif /* TWO_FILE_COMMANDLINE */
 
+#ifndef CJPEG_FUZZER
   /* Open the input file. */
   if (file_index < argc) {
     if ((input_file = fopen(argv[file_index], READ_BINARY)) == NULL) {
@@ -706,9 +746,17 @@ main(int argc, char **argv)
     /* default input file is stdin */
     input_file = read_stdin();
   }
+#endif
 
   /* Open the output file. */
   if (outfilename != NULL) {
+    if (nooverwrite &&
+        (output_file = fopen(outfilename, READ_BINARY)) != NULL) {
+      fclose(output_file);
+      fprintf(stderr, "%s: can't open %s; file exists\n", progname,
+              outfilename);
+      exit(EXIT_FAILURE);
+    }
     if ((output_file = fopen(outfilename, WRITE_BINARY)) == NULL) {
       fprintf(stderr, "%s: can't open %s\n", progname, outfilename);
       exit(EXIT_FAILURE);
@@ -746,8 +794,8 @@ main(int argc, char **argv)
   }
 
 #ifdef CJPEG_FUZZER
-  jerr.error_exit = my_error_exit;
-  jerr.emit_message = my_emit_message_fuzzer;
+  jerr.error_exit = fuzzer_error_exit;
+  jerr.emit_message = fuzzer_emit_message;
   if (setjmp(myerr.setjmp_buffer))
     HANDLE_ERROR()
 #endif
@@ -762,6 +810,11 @@ main(int argc, char **argv)
   src_mgr->input_file = input_file;
 #ifdef CJPEG_FUZZER
   src_mgr->max_pixels = 1048576;
+#endif
+
+#ifdef CJPEG_FUZZER
+  if (setjmp(myerr.setjmp_buffer))
+    HANDLE_ERROR()
 #endif
 
   /* Read the input file header to obtain file size & colorspace. */
@@ -789,6 +842,14 @@ main(int argc, char **argv)
 
   if (icc_profile != NULL)
     jpeg_write_icc_profile(&cinfo, icc_profile, (unsigned int)icc_len);
+  else if (!noicc) {
+    JOCTET *src_icc_profile;
+    unsigned int src_icc_len;
+
+    if ((*src_mgr->read_icc_profile) (&cinfo, src_mgr, &src_icc_profile,
+                                      &src_icc_len))
+      jpeg_write_icc_profile(&cinfo, src_icc_profile, src_icc_len);
+  }
 
   /* Process data */
   if (cinfo.data_precision <= 8) {
@@ -818,8 +879,10 @@ main(int argc, char **argv)
   jpeg_destroy_compress(&cinfo);
 
   /* Close files, if we opened them */
+#ifndef CJPEG_FUZZER
   if (input_file != stdin)
     fclose(input_file);
+#endif
   if (output_file != stdout && output_file != NULL)
     fclose(output_file);
 
