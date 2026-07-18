@@ -67,6 +67,9 @@ init_simd(j_common_ptr cinfo)
   if (simd_support != JSIMD_UNDEFINED)
     return;
 
+#ifndef WITH_SIMD
+  simd_support = JSIMD_NONE;
+#else
   simd_support = jpeg_simd_cpu_support();
 
 #ifndef NO_GETENV
@@ -105,6 +108,7 @@ init_simd(j_common_ptr cinfo)
     ((j_compress_ptr)cinfo)->master->simd_support = simd_support;
     ((j_compress_ptr)cinfo)->master->simd_huffman = simd_huffman;
   }
+#endif
 }
 
 
