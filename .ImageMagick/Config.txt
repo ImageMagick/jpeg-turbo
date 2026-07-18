@@ -58,6 +58,8 @@ simd\mips64\
 simd\powerpc\
 simd\riscv64\
 src\md5\
+src\spng\
+src\bmpsizetest.c
 src\cdjpeg.c
 src\cjpeg.c
 src\djpeg.c
@@ -72,6 +74,7 @@ src\jdmrgext.c
 src\jdmrg565.c
 src\jpegtran.c
 src\jstdhuff.c
+src\jpeg_nbits.c
 src\rd
 src\strtest.c
 src\tj
