@@ -48,6 +48,7 @@ src\jpeglib.h -> .
 win\jpeg62.def
 
 [EXCLUDES]
+cmakescripts\
 doc\
 fuzz\
 jna\
