@@ -1,0 +1,45 @@
+diff --git a/src/jconfigint.h b/src/jconfigint.h
+--- a/src/jconfigint.h
++++ b/src/jconfigint.h
+@@ -21,6 +21,10 @@
+ 
+ /* The size of `size_t', as computed by sizeof. */
++#if defined(_WIN64)
+ #define SIZEOF_SIZE_T  8
++#else
++#define SIZEOF_SIZE_T  4
++#endif
+ 
+ /* Define if your compiler has __builtin_ctzl() and sizeof(unsigned long) == sizeof(size_t). */
+ /* #undef HAVE_BUILTIN_CTZL */
+@@ -60,7 +64,9 @@
+ 
+ #undef C_ARITH_CODING_SUPPORTED
+ #undef D_ARITH_CODING_SUPPORTED
+-#undef WITH_SIMD
++#if !_M_ARM64
++#define WITH_SIMD
++#endif
+ 
+ #if BITS_IN_JSAMPLE == 8
+ 
+diff --git a/src/jmorecfg.h b/src/jmorecfg.h
+index a4df71c..4a63d1f 100644
+--- a/src/jmorecfg.h
++++ b/src/jmorecfg.h
+@@ -172,7 +172,15 @@ typedef unsigned int JDIMENSION;
+ /* a function referenced thru EXTERNs: */
+ #define GLOBAL(type)            type
+ /* a reference to a GLOBAL function: */
++#if defined(_LIB) || !defined(_MSC_VER)
+ #define EXTERN(type)            extern type
++#else
++#if defined(JPEG_TURBO_DLL_BUILD)
++#define EXTERN(type)            extern __declspec(dllexport) type
++#else
++#define EXTERN(type)            extern __declspec(dllimport) type
++#endif
++#endif
+ 
+ 
+ /* Originally, this macro was used as a way of defining function prototypes
