@@ -67,9 +67,6 @@ init_simd(j_common_ptr cinfo)
   if (simd_support != JSIMD_UNDEFINED)
     return;
 
-#ifndef WITH_SIMD
-  simd_support = JSIMD_NONE;
-#else
   simd_support = jpeg_simd_cpu_support();
 
 #ifndef NO_GETENV
@@ -97,8 +94,13 @@ init_simd(j_common_ptr cinfo)
 #endif
   if (!GETENV_S(env, 2, "JSIMD_FORCENONE") && !strcmp(env, "1"))
     simd_support = 0;
+#ifdef WITH_SIMDE
+  if (!GETENV_S(env, 2, "JSIMD_HUFFENC") && !strcmp(env, "1"))
+    simd_huffman = 1;
+#else
   if (!GETENV_S(env, 2, "JSIMD_NOHUFFENC") && !strcmp(env, "1"))
     simd_huffman = 0;
+#endif
 #endif
 
   if (cinfo->is_decompressor) {
@@ -108,7 +110,6 @@ init_simd(j_common_ptr cinfo)
     ((j_compress_ptr)cinfo)->master->simd_support = simd_support;
     ((j_compress_ptr)cinfo)->master->simd_huffman = simd_huffman;
   }
-#endif
 }
 
 
